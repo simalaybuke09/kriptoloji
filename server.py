@@ -151,7 +151,9 @@ class ServerApp:
     
     def decrypt_message(self, message, cipher, key):
         try:
-            if "Caesar" in cipher:
+            if "Columnar" in cipher: # YENİ EKLENDİ
+                return self.crypto.columnar_decrypt(message, key)
+            elif "Caesar" in cipher:
                 return self.crypto.caesar_decrypt(message, int(key))
             elif "Substitution" in cipher:
                 return self.crypto.substitution_decrypt(message, key)
@@ -161,7 +163,7 @@ class ServerApp:
                 return self.crypto.playfair_decrypt(message, key)
             elif "Route" in cipher:
                 return self.crypto.route_decrypt(message, key)
-            elif "Rail Fence" in cipher: # YENİ EKLENDİ
+            elif "Rail Fence" in cipher:
                 return self.crypto.rail_fence_decrypt(message, key)
             elif "Hash" in cipher:
                 return "⚠️ MD5 tek yönlüdür, deşifrelenemez!"

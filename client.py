@@ -47,8 +47,8 @@ class ClientApp:
         self.cipher_var = tk.StringVar()
         cipher_combo = ttk.Combobox(content, textvariable=self.cipher_var,
                                        font=("Arial", 11), width=50, state="readonly")
-        cipher_combo['values'] = ("Caesar Cipher (Kaydırma)", "Substitution Cipher", 
-                                     "Vigenere Cipher", "Playfair Cipher", 
+        cipher_combo['values'] = ("Columnar Transposition (Anahtar Kelime)", "Caesar Cipher (Kaydırma)", 
+                                     "Substitution Cipher", "Vigenere Cipher", "Playfair Cipher", 
                                      "Route Cipher", "Rail Fence Cipher (Ray Sayısı)", "Hash (MD5)")
         cipher_combo.current(0)
         cipher_combo.pack(pady=5)
@@ -57,7 +57,8 @@ class ClientApp:
         tk.Label(content, text="🔑 Anahtar", 
                  font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         self.key_entry = tk.Entry(content, font=("Arial", 11), width=52)
-        self.key_entry.insert(0, "3") 
+        # Başlangıçta Columnar için anahtarı ayarla
+        self.key_entry.insert(0, "TRUVA") 
         self.key_entry.pack(pady=5)
         
         # ComboBox'a event bağla
@@ -111,6 +112,8 @@ class ClientApp:
         if "Hash" in selected_cipher:
             self.key_entry.insert(0, "MD5 için anahtar gerekmez.")
             self.key_entry.config(state=tk.DISABLED, fg="#888")
+        elif "Columnar" in selected_cipher:
+            self.key_entry.insert(0, "TRUVA (Anahtar Kelime)")
         elif "Caesar" in selected_cipher:
             self.key_entry.insert(0, "3 (Kaydırma Miktarı)")
         elif "Substitution" in selected_cipher:
@@ -151,17 +154,17 @@ class ClientApp:
             messagebox.showerror("Hata", "Lütfen bir mesaj girin!")
             return
         
-        # MD5 seçiliyse ve anahtar metni otomatik doldurulduysa 'key' değerini geçersiz kıl
         if "Hash" not in cipher and not key:
             messagebox.showerror("Hata", "Lütfen bir anahtar girin!")
             return
         
-        # MD5 seçildiğinde, anahtar alanındaki otomatik mesajı temizle
         if "Hash" in cipher:
             key = ""
         
         try:
-            if "Caesar" in cipher:
+            if "Columnar" in cipher:
+                encrypted = self.crypto.columnar_encrypt(msg, key)
+            elif "Caesar" in cipher:
                 encrypted = self.crypto.caesar_encrypt(msg, int(key))
             elif "Substitution" in cipher:
                 encrypted = self.crypto.substitution_encrypt(msg, key)

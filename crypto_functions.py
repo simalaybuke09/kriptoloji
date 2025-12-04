@@ -2,6 +2,82 @@ import hashlib
 
 class CryptoFunctions:
     
+    # --- YARDIMCI METOTLAR ---
+    def _get_key_order(self, key):
+        """Anahtar kelimedeki harflerin alfabetik sıra indekslerini döndürür."""
+        sorted_chars = sorted(list(key.upper()))
+        order = []
+        key_list = list(key.upper())
+        
+        # Anahtar kelimenin her harfinin, sıralanmış listedeki ilk indeksini bulur
+        for char in sorted_chars:
+            # Aynı harfler varsa doğru indeksi bulmak için .pop kullanılır
+            idx = key_list.index(char)
+            order.append(idx)
+            key_list[idx] = None # Kullanılan indeksi None yaparak bir sonraki aynı harfi atlamayı sağlar
+        return order
+
+    # --- COLUMNAR TRANSPOSITION CIPHER (YENİ EKLENDİ) ---
+    def columnar_encrypt(self, text, key):
+        """Columnar Transposition Cipher ile şifreleme"""
+        text = text.replace(' ', '').upper()
+        key = key.upper()
+        cols = len(key)
+        
+        # Mesajı matrise doldur
+        rows = (len(text) + cols - 1) // cols
+        matrix = [['' for _ in range(cols)] for _ in range(rows)]
+        
+        idx = 0
+        for i in range(rows):
+            for j in range(cols):
+                if idx < len(text):
+                    matrix[i][j] = text[idx]
+                    idx += 1
+                else:
+                    matrix[i][j] = '*' # Eksik yerleri doldur
+        
+        # Sütunları anahtar sırasına göre oku
+        key_order = self._get_key_order(key)
+        encrypted_text = []
+        
+        for original_col_index in key_order:
+            for i in range(rows):
+                encrypted_text.append(matrix[i][original_col_index])
+        
+        return "".join(encrypted_text)
+
+    def columnar_decrypt(self, text, key):
+        """Columnar Transposition Cipher ile deşifreleme"""
+        key = key.upper()
+        cols = len(key)
+        n = len(text)
+        rows = (n + cols - 1) // cols
+        
+        # Anahtar sırasını al ve ters çevir (şifreli metnin hangi sütuna ait olduğunu bulmak için)
+        key_order = self._get_key_order(key)
+        
+        # Boş bir matris oluştur
+        decryption_matrix = [['' for _ in range(cols)] for _ in range(rows)]
+        
+        # Şifreli metni sütun sütun doğru yerlere doldur
+        char_index = 0
+        
+        for i, original_col_index in enumerate(key_order):
+            for r in range(rows):
+                if char_index < n:
+                    decryption_matrix[r][original_col_index] = text[char_index]
+                    char_index += 1
+        
+        # Deşifreli metni matrisi satır satır okuyarak oluştur
+        decrypted_text = ""
+        for i in range(rows):
+            for j in range(cols):
+                if decryption_matrix[i][j] != '*':
+                    decrypted_text += decryption_matrix[i][j]
+        
+        return decrypted_text
+    
     # --- CAESAR CIPHER ---
     def caesar_encrypt(self, text, shift):
         """Caesar Cipher ile şifreleme"""
@@ -232,7 +308,7 @@ class CryptoFunctions:
         
         return result
     
-    # --- RAIL FENCE CIPHER (YENİ EKLENDİ) ---
+    # --- RAIL FENCE CIPHER ---
     def rail_fence_encrypt(self, text, rails):
         """Rail Fence Cipher ile şifreleme (Encryption)"""
         text = ''.join(c for c in text.upper() if c.isalpha())

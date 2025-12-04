@@ -47,9 +47,9 @@ class ClientApp:
         self.cipher_var = tk.StringVar()
         cipher_combo = ttk.Combobox(content, textvariable=self.cipher_var,
                                        font=("Arial", 11), width=50, state="readonly")
-        cipher_combo['values'] = ("Columnar Transposition (Anahtar Kelime)", "Caesar Cipher (Kaydırma)", 
+        cipher_combo['values'] = ("Route Cipher (Spiral-Saat Yönü)", "Columnar Transposition (Anahtar Kelime)", "Caesar Cipher (Kaydırma)", 
                                      "Substitution Cipher", "Vigenere Cipher", "Playfair Cipher", 
-                                     "Route Cipher", "Rail Fence Cipher (Ray Sayısı)", "Hash (MD5)")
+                                     "Rail Fence Cipher (Ray Sayısı)", "Hash (MD5)")
         cipher_combo.current(0)
         cipher_combo.pack(pady=5)
         
@@ -57,8 +57,8 @@ class ClientApp:
         tk.Label(content, text="🔑 Anahtar", 
                  font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         self.key_entry = tk.Entry(content, font=("Arial", 11), width=52)
-        # Başlangıçta Columnar için anahtarı ayarla
-        self.key_entry.insert(0, "TRUVA") 
+        # Başlangıçta Route için anahtarı ayarla
+        self.key_entry.insert(0, "5") 
         self.key_entry.pack(pady=5)
         
         # ComboBox'a event bağla
@@ -112,6 +112,8 @@ class ClientApp:
         if "Hash" in selected_cipher:
             self.key_entry.insert(0, "MD5 için anahtar gerekmez.")
             self.key_entry.config(state=tk.DISABLED, fg="#888")
+        elif "Route Cipher" in selected_cipher:
+            self.key_entry.insert(0, "5 (Matris Genişliği)")
         elif "Columnar" in selected_cipher:
             self.key_entry.insert(0, "TRUVA (Anahtar Kelime)")
         elif "Caesar" in selected_cipher:
@@ -122,8 +124,6 @@ class ClientApp:
             self.key_entry.insert(0, "KEYWORD (Anahtar Kelime)")
         elif "Playfair" in selected_cipher:
             self.key_entry.insert(0, "PLAYFAIR (Anahtar Kelime - J/I kuralı)")
-        elif "Route" in selected_cipher:
-            self.key_entry.insert(0, "4 (Sütun Sayısı)")
         elif "Rail Fence" in selected_cipher:
             self.key_entry.insert(0, "2 (Ray Sayısı)")
         else:
@@ -162,7 +162,9 @@ class ClientApp:
             key = ""
         
         try:
-            if "Columnar" in cipher:
+            if "Route Cipher" in cipher:
+                encrypted = self.crypto.route_encrypt(msg, key)
+            elif "Columnar" in cipher:
                 encrypted = self.crypto.columnar_encrypt(msg, key)
             elif "Caesar" in cipher:
                 encrypted = self.crypto.caesar_encrypt(msg, int(key))
@@ -172,8 +174,6 @@ class ClientApp:
                 encrypted = self.crypto.vigenere_encrypt(msg, key)
             elif "Playfair" in cipher:
                 encrypted = self.crypto.playfair_encrypt(msg, key)
-            elif "Route" in cipher:
-                encrypted = self.crypto.route_encrypt(msg, key)
             elif "Rail Fence" in cipher:
                 encrypted = self.crypto.rail_fence_encrypt(msg, key)
             elif "Hash" in cipher:

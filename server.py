@@ -151,7 +151,9 @@ class ServerApp:
     
     def decrypt_message(self, message, cipher, key):
         try:
-            if "Columnar" in cipher: # YENİ EKLENDİ
+            if "Route Cipher" in cipher:
+                return self.crypto.route_decrypt(message, key)
+            elif "Columnar" in cipher:
                 return self.crypto.columnar_decrypt(message, key)
             elif "Caesar" in cipher:
                 return self.crypto.caesar_decrypt(message, int(key))
@@ -161,8 +163,6 @@ class ServerApp:
                 return self.crypto.vigenere_decrypt(message, key)
             elif "Playfair" in cipher:
                 return self.crypto.playfair_decrypt(message, key)
-            elif "Route" in cipher:
-                return self.crypto.route_decrypt(message, key)
             elif "Rail Fence" in cipher:
                 return self.crypto.rail_fence_decrypt(message, key)
             elif "Hash" in cipher:

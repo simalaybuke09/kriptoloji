@@ -390,6 +390,106 @@ class CryptoFunctions:
                 row -= 1
 
         return "".join(result)
+    def route_encrypt(self, text, key):
+        """Route Cipher (Saat Yönü Spiral) ile şifreleme"""
+        text = ''.join(c for c in text.upper() if c.isalpha())
+        key = int(key) # Key burada matrisin yatay uzunluğudur (sütun sayısı)
+        
+        cols = key
+        rows = (len(text) + cols - 1) // cols
+        matrix = [['' for _ in range(cols)] for _ in range(rows)]
+        
+        # 1. Metni matrise satır satır doldur
+        idx = 0
+        for i in range(rows):
+            for j in range(cols):
+                if idx < len(text):
+                    matrix[i][j] = text[idx]
+                    idx += 1
+                else:
+                    matrix[i][j] = '*' # Görseldeki gibi dolgu karakteri
+
+        # 2. Matrisi saat yönünde spiral olarak oku
+        encrypted_text = []
+        top, bottom, left, right = 0, rows - 1, 0, cols - 1
+
+        while top <= bottom and left <= right:
+            # Sağ üstten başla (Görselde B, U, G, İ, Z, L, İ, B, İ, R, M, E, S, A, J, D, İ, R yerleştirilmiş)
+            # Okuma: Sağdan sola (Üst sıra)
+            for i in range(right, left - 1, -1):
+                encrypted_text.append(matrix[top][i])
+            top += 1
+
+            # Yukarıdan aşağıya (Sol sütun)
+            for i in range(top, bottom + 1):
+                encrypted_text.append(matrix[i][left])
+            left += 1
+            
+            # Soldan sağa (Alt sıra)
+            if top <= bottom:
+                for i in range(left, right + 1):
+                    encrypted_text.append(matrix[bottom][i])
+                bottom -= 1
+
+            # Aşağıdan yukarıya (Sağ sütun)
+            if left <= right:
+                for i in range(bottom, top - 1, -1):
+                    encrypted_text.append(matrix[i][right])
+                right -= 1
+        
+        # Dolgu karakterini çıkararak sonucu döndür
+        return "".join(c for c in encrypted_text if c != '*')
+
+    def route_decrypt(self, text, key):
+        """Route Cipher (Saat Yönü Spiral) ile deşifreleme"""
+        text = text.upper()
+        cols = int(key)
+        n = len(text)
+        rows = (n + cols - 1) // cols
+        
+        decryption_matrix = [['' for _ in range(cols)] for _ in range(rows)]
+        
+        # 1. Matristeki spiral rotanın pozisyonlarını işaretle
+        path_matrix = [['\n' for _ in range(cols)] for _ in range(rows)]
+        top, bottom, left, right = 0, rows - 1, 0, cols - 1
+        spiral_order = []
+
+        while top <= bottom and left <= right:
+            # Sağdan sola (Üst sıra)
+            for i in range(right, left - 1, -1):
+                spiral_order.append((top, i))
+            top += 1
+
+            # Yukarıdan aşağıya (Sol sütun)
+            for i in range(top, bottom + 1):
+                spiral_order.append((i, left))
+            left += 1
+            
+            # Soldan sağa (Alt sıra)
+            if top <= bottom:
+                for i in range(left, right + 1):
+                    spiral_order.append((bottom, i))
+                bottom -= 1
+
+            # Aşağıdan yukarıya (Sağ sütun)
+            if left <= right:
+                for i in range(bottom, top - 1, -1):
+                    spiral_order.append((i, right))
+                right -= 1
+
+        # 2. Şifreli metni spiral yörüngeye yerleştir
+        for i, (r, c) in enumerate(spiral_order):
+            if i < n:
+                decryption_matrix[r][c] = text[i]
+
+        # 3. Metni satır satır normal sırada oku
+        decrypted_text = ""
+        for i in range(rows):
+            for j in range(cols):
+                if decryption_matrix[i][j] != '*':
+                    decrypted_text += decryption_matrix[i][j]
+        
+        return decrypted_text
 
     # --- HASHING ---
     def md5_hash(self, text):

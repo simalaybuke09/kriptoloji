@@ -3,7 +3,7 @@ from tkinter import ttk, messagebox, scrolledtext
 import socket
 import json
 from datetime import datetime
-from crypto_functions import CryptoFunctions # crypto_functions.py dosyanızın aynı dizinde olduğunu varsayar
+from crypto_functions import CryptoFunctions
 
 class ClientApp:
     def __init__(self):
@@ -49,7 +49,7 @@ class ClientApp:
                                        font=("Arial", 11), width=50, state="readonly")
         cipher_combo['values'] = ("Caesar Cipher (Kaydırma)", "Substitution Cipher", 
                                      "Vigenere Cipher", "Playfair Cipher", 
-                                     "Route Cipher", "Hash (MD5)")
+                                     "Route Cipher", "Rail Fence Cipher (Ray Sayısı)", "Hash (MD5)")
         cipher_combo.current(0)
         cipher_combo.pack(pady=5)
         
@@ -57,7 +57,6 @@ class ClientApp:
         tk.Label(content, text="🔑 Anahtar", 
                  font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         self.key_entry = tk.Entry(content, font=("Arial", 11), width=52)
-        # Başlangıçta Caesar için anahtarı ayarla
         self.key_entry.insert(0, "3") 
         self.key_entry.pack(pady=5)
         
@@ -122,8 +121,10 @@ class ClientApp:
             self.key_entry.insert(0, "PLAYFAIR (Anahtar Kelime - J/I kuralı)")
         elif "Route" in selected_cipher:
             self.key_entry.insert(0, "4 (Sütun Sayısı)")
+        elif "Rail Fence" in selected_cipher:
+            self.key_entry.insert(0, "2 (Ray Sayısı)")
         else:
-            self.key_entry.insert(0, "") # Varsayılan
+            self.key_entry.insert(0, "") 
 
         
     def connect_to_server(self):
@@ -170,6 +171,8 @@ class ClientApp:
                 encrypted = self.crypto.playfair_encrypt(msg, key)
             elif "Route" in cipher:
                 encrypted = self.crypto.route_encrypt(msg, key)
+            elif "Rail Fence" in cipher:
+                encrypted = self.crypto.rail_fence_encrypt(msg, key)
             elif "Hash" in cipher:
                 encrypted = self.crypto.md5_hash(msg)
             else:
@@ -196,18 +199,13 @@ class ClientApp:
             messagebox.showerror("Hata", "Lütfen önce mesajı şifreleyin!")
             return
         
-        # 'encrypt' metodu MD5 seçiliyse 'key'i boşaltmıştır, burada tekrar alıyoruz.
         key = self.key_entry.get().strip()
         cipher = self.cipher_var.get()
-        
-        # MD5 seçildiğinde, gönderilen 'key'in boş olduğundan emin olalım (ya da sunucuda boşluğa izin verelim)
-        # Sunucu tarafı MD5 için 'key'i kullanmadığından, boş bırakılabilir.
         
         try:
             # JSON formatında gönder
             request = json.dumps({
                 'cipher': cipher,
-                # MD5 için key boş gidebilir, diğerleri için girilen neyse o gider.
                 'key': key if "Hash" not in cipher else "", 
                 'message': encrypted_msg
             })

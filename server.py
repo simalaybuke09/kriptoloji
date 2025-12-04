@@ -27,7 +27,7 @@ class ServerApp:
         header.pack(fill=tk.X)
         
         tk.Label(header, text="🔓 SUNUCU - Deşifreleme Servisi", 
-                font=("Arial", 20, "bold"), bg="#4CAF50", fg="white").pack(pady=20)
+                 font=("Arial", 20, "bold"), bg="#4CAF50", fg="white").pack(pady=20)
         
         # Ana içerik
         content = tk.Frame(self.window, bg="white")
@@ -35,35 +35,35 @@ class ServerApp:
         
         # Durum Bilgisi
         status_frame = tk.LabelFrame(content, text="📡 Bağlantı Durumu", 
-                                    font=("Arial", 11, "bold"), bg="white", fg="#4CAF50")
+                                     font=("Arial", 11, "bold"), bg="white", fg="#4CAF50")
         status_frame.pack(fill=tk.X, pady=10)
         
         self.status_label = tk.Label(status_frame, text="⏳ Başlatılıyor...", 
-                                     font=("Arial", 10), bg="white", fg="orange")
+                                      font=("Arial", 10), bg="white", fg="orange")
         self.status_label.pack(pady=10)
         
         # Gelen Mesajlar
         tk.Label(content, text="📨 Gelen Şifreli Mesajlar", 
-                font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
+                 font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         
         self.received_text = scrolledtext.ScrolledText(content, font=("Courier", 10), 
-                                                       height=8, wrap=tk.WORD, bg="#fff3e0")
+                                                      height=8, wrap=tk.WORD, bg="#fff3e0")
         self.received_text.pack(fill=tk.BOTH, expand=True, pady=5)
         
         # Deşifrelenmiş Mesajlar
         tk.Label(content, text="✅ Deşifrelenmiş Mesajlar", 
-                font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
+                 font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         
         self.decrypted_text = scrolledtext.ScrolledText(content, font=("Courier", 10), 
-                                                        height=8, wrap=tk.WORD, bg="#e8f5e9")
+                                                       height=8, wrap=tk.WORD, bg="#e8f5e9")
         self.decrypted_text.pack(fill=tk.BOTH, expand=True, pady=5)
         
         # Log Alanı
         tk.Label(content, text="📋 İşlem Logları", 
-                font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
+                 font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         
         self.log_text = scrolledtext.ScrolledText(content, font=("Courier", 9), 
-                                                  height=6, wrap=tk.WORD, bg="#f5f5f5")
+                                                   height=6, wrap=tk.WORD, bg="#f5f5f5")
         self.log_text.pack(fill=tk.BOTH, expand=True, pady=5)
         
         # Kontrol Butonları
@@ -71,8 +71,8 @@ class ServerApp:
         btn_frame.pack(pady=10)
         
         tk.Button(btn_frame, text="🗑️ Temizle", command=self.clear_all,
-                 bg="#FF9800", fg="white", font=("Arial", 10, "bold"),
-                 padx=20, pady=8, relief=tk.FLAT, cursor="hand2").pack(side=tk.LEFT, padx=5)
+                   bg="#FF9800", fg="white", font=("Arial", 10, "bold"),
+                   padx=20, pady=8, relief=tk.FLAT, cursor="hand2").pack(side=tk.LEFT, padx=5)
         
         self.stop_btn = tk.Button(btn_frame, text="⏹️ Sunucuyu Durdur", command=self.stop_server,
                                  bg="#f44336", fg="white", font=("Arial", 10, "bold"),
@@ -161,6 +161,8 @@ class ServerApp:
                 return self.crypto.playfair_decrypt(message, key)
             elif "Route" in cipher:
                 return self.crypto.route_decrypt(message, key)
+            elif "Rail Fence" in cipher: # YENİ EKLENDİ
+                return self.crypto.rail_fence_decrypt(message, key)
             elif "Hash" in cipher:
                 return "⚠️ MD5 tek yönlüdür, deşifrelenemez!"
             else:

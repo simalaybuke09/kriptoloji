@@ -1,6 +1,8 @@
 import hashlib
 
 class CryptoFunctions:
+    
+    # --- CAESAR CIPHER ---
     def caesar_encrypt(self, text, shift):
         """Caesar Cipher ile şifreleme"""
         result = ""
@@ -16,6 +18,7 @@ class CryptoFunctions:
         """Caesar Cipher ile deşifreleme"""
         return self.caesar_encrypt(text, -shift)
     
+    # --- SUBSTITUTION CIPHER ---
     def substitution_encrypt(self, text, key):
         """Substitution Cipher ile şifreleme"""
         alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -56,6 +59,7 @@ class CryptoFunctions:
                 result += char
         return result
     
+    # --- VIGENERE CIPHER ---
     def vigenere_encrypt(self, text, key):
         """Vigenere Cipher ile şifreleme"""
         result = ""
@@ -88,6 +92,7 @@ class CryptoFunctions:
                 result += char
         return result
     
+    # --- PLAYFAIR CIPHER ---
     def playfair_encrypt(self, text, key):
         """Playfair Cipher ile şifreleme"""
         # Playfair matrisi oluştur
@@ -179,6 +184,7 @@ class CryptoFunctions:
                 return i, row.index(char)
         return 0, 0
     
+    # --- ROUTE CIPHER ---
     def route_encrypt(self, text, key):
         """Route Cipher ile şifreleme"""
         key = int(key)
@@ -226,6 +232,90 @@ class CryptoFunctions:
         
         return result
     
+    # --- RAIL FENCE CIPHER (YENİ EKLENDİ) ---
+    def rail_fence_encrypt(self, text, rails):
+        """Rail Fence Cipher ile şifreleme (Encryption)"""
+        text = ''.join(c for c in text.upper() if c.isalpha())
+        rails = int(rails)
+
+        if rails <= 1:
+            return text
+
+        rail_matrix = [['\n' for _ in range(len(text))] for _ in range(rails)]
+        direction_down = False 
+        row, col = 0, 0
+        
+        for char in text:
+            if row == 0 or row == rails - 1:
+                direction_down = not direction_down
+            
+            rail_matrix[row][col] = char
+            col += 1
+            
+            if direction_down:
+                row += 1
+            else:
+                row -= 1
+
+        result = []
+        for i in range(rails):
+            for j in range(len(text)):
+                if rail_matrix[i][j] != '\n':
+                    result.append(rail_matrix[i][j])
+                    
+        return "".join(result)
+
+    def rail_fence_decrypt(self, text, rails):
+        """Rail Fence Cipher ile deşifreleme (Decryption)"""
+        text = text.upper()
+        rails = int(rails)
+
+        if rails <= 1:
+            return text
+
+        n = len(text)
+        rail_matrix = [['\n' for _ in range(n)] for _ in range(rails)]
+        
+        # 1. Matristeki yerleri işaretle
+        direction_down = False
+        row, col = 0, 0
+        for i in range(n):
+            if row == 0 or row == rails - 1:
+                direction_down = not direction_down
+            rail_matrix[row][col] = '*' 
+            col += 1
+            if direction_down:
+                row += 1
+            else:
+                row -= 1
+
+        # 2. İşaretli yerlere şifreli metni yerleştir
+        index = 0
+        for i in range(rails):
+            for j in range(n):
+                if rail_matrix[i][j] == '*' and index < n:
+                    rail_matrix[i][j] = text[index]
+                    index += 1
+
+        # 3. Zikzak sırasına göre matrisi oku
+        result = []
+        direction_down = False
+        row, col = 0, 0
+        for i in range(n):
+            if row == 0 or row == rails - 1:
+                direction_down = not direction_down
+            
+            result.append(rail_matrix[row][col])
+            col += 1
+            
+            if direction_down:
+                row += 1
+            else:
+                row -= 1
+
+        return "".join(result)
+
+    # --- HASHING ---
     def md5_hash(self, text):
         """MD5 hash oluştur"""
         return hashlib.md5(text.encode()).hexdigest()

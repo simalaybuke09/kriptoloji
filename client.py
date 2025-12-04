@@ -3,7 +3,7 @@ from tkinter import ttk, messagebox, scrolledtext
 import socket
 import json
 from datetime import datetime
-from crypto_functions import CryptoFunctions
+from crypto_functions import CryptoFunctions # crypto_functions.py dosyanızın aynı dizinde olduğunu varsayar
 
 class ClientApp:
     def __init__(self):
@@ -25,7 +25,7 @@ class ClientApp:
         header.pack(fill=tk.X)
         
         tk.Label(header, text="🔒 İSTEMCİ - Şifreleme Servisi", 
-                font=("Arial", 20, "bold"), bg="#2196F3", fg="white").pack(pady=20)
+                 font=("Arial", 20, "bold"), bg="#2196F3", fg="white").pack(pady=20)
         
         # Ana içerik
         content = tk.Frame(self.window, bg="white")
@@ -33,36 +33,40 @@ class ClientApp:
         
         # Durum Bilgisi
         status_frame = tk.LabelFrame(content, text="📡 Bağlantı Durumu", 
-                                    font=("Arial", 11, "bold"), bg="white", fg="#2196F3")
+                                     font=("Arial", 11, "bold"), bg="white", fg="#2196F3")
         status_frame.pack(fill=tk.X, pady=10)
         
         self.status_label = tk.Label(status_frame, text="⏳ Sunucuya bağlanılıyor...", 
-                                     font=("Arial", 10), bg="white", fg="orange")
+                                      font=("Arial", 10), bg="white", fg="orange")
         self.status_label.pack(pady=10)
         
         # Şifreleme Yöntemi
         tk.Label(content, text="🔐 Şifreleme Yöntemi", 
-                font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
+                 font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         
         self.cipher_var = tk.StringVar()
         cipher_combo = ttk.Combobox(content, textvariable=self.cipher_var,
-                                   font=("Arial", 11), width=50, state="readonly")
+                                       font=("Arial", 11), width=50, state="readonly")
         cipher_combo['values'] = ("Caesar Cipher (Kaydırma)", "Substitution Cipher", 
-                                  "Vigenere Cipher", "Playfair Cipher", 
-                                  "Route Cipher", "Hash (MD5)")
+                                     "Vigenere Cipher", "Playfair Cipher", 
+                                     "Route Cipher", "Hash (MD5)")
         cipher_combo.current(0)
         cipher_combo.pack(pady=5)
         
         # Anahtar
         tk.Label(content, text="🔑 Anahtar", 
-                font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
+                 font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         self.key_entry = tk.Entry(content, font=("Arial", 11), width=52)
-        self.key_entry.insert(0, "3")
+        # Başlangıçta Caesar için anahtarı ayarla
+        self.key_entry.insert(0, "3") 
         self.key_entry.pack(pady=5)
+        
+        # ComboBox'a event bağla
+        cipher_combo.bind("<<ComboboxSelected>>", self.update_key_field)
         
         # Mesaj
         tk.Label(content, text="💬 Mesaj", 
-                font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
+                 font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         self.msg_text = tk.Text(content, font=("Arial", 11), height=5, width=65, wrap=tk.WORD)
         self.msg_text.pack(pady=5)
         
@@ -71,33 +75,56 @@ class ClientApp:
         btn_frame.pack(pady=15)
         
         tk.Button(btn_frame, text="🔒 Şifrele", command=self.encrypt,
-                 bg="#2196F3", fg="white", font=("Arial", 11, "bold"),
-                 padx=30, pady=10, relief=tk.FLAT, cursor="hand2").pack(side=tk.LEFT, padx=5)
+                   bg="#2196F3", fg="white", font=("Arial", 11, "bold"),
+                   padx=30, pady=10, relief=tk.FLAT, cursor="hand2").pack(side=tk.LEFT, padx=5)
         
         tk.Button(btn_frame, text="📤 Sunucuya Gönder", command=self.send_to_server,
-                 bg="#4CAF50", fg="white", font=("Arial", 11, "bold"),
-                 padx=30, pady=10, relief=tk.FLAT, cursor="hand2").pack(side=tk.LEFT, padx=5)
+                   bg="#4CAF50", fg="white", font=("Arial", 11, "bold"),
+                   padx=30, pady=10, relief=tk.FLAT, cursor="hand2").pack(side=tk.LEFT, padx=5)
         
         # Şifrelenmiş Mesaj
         tk.Label(content, text="🔐 Şifrelenmiş Mesaj", 
-                font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
+                 font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         self.encrypted_text = tk.Text(content, font=("Courier", 10), 
-                                     height=5, width=65, wrap=tk.WORD, bg="#e3f2fd")
+                                      height=5, width=65, wrap=tk.WORD, bg="#e3f2fd")
         self.encrypted_text.pack(pady=5)
         
         # Sunucudan Gelen Cevap
         tk.Label(content, text="✅ Sunucudan Gelen Deşifrelenmiş Mesaj", 
-                font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
+                 font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         self.response_text = tk.Text(content, font=("Courier", 10), 
-                                    height=5, width=65, wrap=tk.WORD, bg="#e8f5e9")
+                                     height=5, width=65, wrap=tk.WORD, bg="#e8f5e9")
         self.response_text.pack(pady=5)
         
         # Log Alanı
         tk.Label(content, text="📋 İşlem Logları", 
-                font=("Arial", 10, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
+                 font=("Arial", 10, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         self.log_text = scrolledtext.ScrolledText(content, font=("Courier", 9), 
                                                   height=4, wrap=tk.WORD, bg="#f5f5f5")
         self.log_text.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+    def update_key_field(self, event):
+        """Seçilen şifreye göre anahtar giriş alanını ayarlar."""
+        selected_cipher = self.cipher_var.get()
+        self.key_entry.config(state=tk.NORMAL, fg="black")
+        self.key_entry.delete(0, tk.END)
+
+        if "Hash" in selected_cipher:
+            self.key_entry.insert(0, "MD5 için anahtar gerekmez.")
+            self.key_entry.config(state=tk.DISABLED, fg="#888")
+        elif "Caesar" in selected_cipher:
+            self.key_entry.insert(0, "3 (Kaydırma Miktarı)")
+        elif "Substitution" in selected_cipher:
+            self.key_entry.insert(0, "QWERTYUIOPASDFGHJKLZXCVBNM (26 benzersiz harf)")
+        elif "Vigenere" in selected_cipher:
+            self.key_entry.insert(0, "KEYWORD (Anahtar Kelime)")
+        elif "Playfair" in selected_cipher:
+            self.key_entry.insert(0, "PLAYFAIR (Anahtar Kelime - J/I kuralı)")
+        elif "Route" in selected_cipher:
+            self.key_entry.insert(0, "4 (Sütun Sayısı)")
+        else:
+            self.key_entry.insert(0, "") # Varsayılan
+
         
     def connect_to_server(self):
         try:
@@ -112,7 +139,7 @@ class ClientApp:
             self.log(f"❌ Sunucuya bağlanılamadı: {e}")
             self.status_label.config(text=f"❌ Bağlantı Hatası: {e}", fg="red")
             messagebox.showerror("Bağlantı Hatası", 
-                               "Sunucuya bağlanılamadı!\n\nLütfen önce server.py'yi çalıştırın.")
+                                 "Sunucuya bağlanılamadı!\n\nLütfen önce server.py'yi çalıştırın.")
     
     def encrypt(self):
         msg = self.msg_text.get("1.0", tk.END).strip()
@@ -123,9 +150,14 @@ class ClientApp:
             messagebox.showerror("Hata", "Lütfen bir mesaj girin!")
             return
         
-        if not key and "Hash" not in cipher:
+        # MD5 seçiliyse ve anahtar metni otomatik doldurulduysa 'key' değerini geçersiz kıl
+        if "Hash" not in cipher and not key:
             messagebox.showerror("Hata", "Lütfen bir anahtar girin!")
             return
+        
+        # MD5 seçildiğinde, anahtar alanındaki otomatik mesajı temizle
+        if "Hash" in cipher:
+            key = ""
         
         try:
             if "Caesar" in cipher:
@@ -150,7 +182,7 @@ class ClientApp:
             self.log(f"🔒 Mesaj şifrelendi - Yöntem: {cipher}")
             
         except ValueError as e:
-            messagebox.showerror("Hata", str(e))
+            messagebox.showerror("Hata", f"Anahtar veya mesaj formatı hatası: {str(e)}")
         except Exception as e:
             messagebox.showerror("Hata", f"Şifreleme hatası: {str(e)}")
     
@@ -164,14 +196,19 @@ class ClientApp:
             messagebox.showerror("Hata", "Lütfen önce mesajı şifreleyin!")
             return
         
+        # 'encrypt' metodu MD5 seçiliyse 'key'i boşaltmıştır, burada tekrar alıyoruz.
         key = self.key_entry.get().strip()
         cipher = self.cipher_var.get()
+        
+        # MD5 seçildiğinde, gönderilen 'key'in boş olduğundan emin olalım (ya da sunucuda boşluğa izin verelim)
+        # Sunucu tarafı MD5 için 'key'i kullanmadığından, boş bırakılabilir.
         
         try:
             # JSON formatında gönder
             request = json.dumps({
                 'cipher': cipher,
-                'key': key,
+                # MD5 için key boş gidebilir, diğerleri için girilen neyse o gider.
+                'key': key if "Hash" not in cipher else "", 
                 'message': encrypted_msg
             })
             
@@ -188,7 +225,7 @@ class ClientApp:
                 self.response_text.insert("1.0", decrypted)
                 self.log(f"✅ Sunucudan deşifrelenmiş mesaj alındı")
             else:
-                messagebox.showerror("Hata", "Sunucu tarafında bir hata oluştu!")
+                messagebox.showerror("Hata", f"Sunucu tarafında bir hata oluştu: {data.get('decrypted', 'Bilinmeyen hata')}")
                 
         except Exception as e:
             self.log(f"❌ Gönderim hatası: {e}")

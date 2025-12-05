@@ -139,6 +139,8 @@ class ServerApp:
     
     def decrypt_message(self, message, cipher, key):
         try:
+            if "Hill Cipher" in cipher:
+                return self.crypto.hill_decrypt(message, key)
             if "Pigpen" in cipher:
                 return self.crypto.pigpen_decrypt(message)
             elif "Polybius" in cipher:

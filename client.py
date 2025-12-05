@@ -45,14 +45,14 @@ class ClientApp:
                                        font=("Arial", 11), width=50, state="readonly")
         cipher_combo['values'] = ("Pigpen Cipher (Anahtarsız)", "Polybius Cipher (Anahtarsız)", "Route Cipher (Spiral-Saat Yönü)", "Columnar Transposition (Anahtar Kelime)", "Caesar Cipher (Kaydırma)", 
                                      "Substitution Cipher", "Vigenere Cipher", "Playfair Cipher", 
-                                     "Rail Fence Cipher (Ray Sayısı)", "Hash (MD5)")
+                                     "Rail Fence Cipher (Ray Sayısı)","Hill Cipher", "Hash (MD5)")
         cipher_combo.current(0)
         cipher_combo.pack(pady=5)
         
         tk.Label(content, text="🔑 Anahtar", 
                  font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         self.key_entry = tk.Entry(content, font=("Arial", 11), width=52)
-        self.key_entry.insert(0, "Anahtar gerekmez.") 
+        self.key_entry.insert(0," ") 
         self.key_entry.config(state=tk.DISABLED, fg="#888")
         self.key_entry.pack(pady=5)
         
@@ -100,6 +100,8 @@ class ClientApp:
         if "Hash" in selected_cipher or "Polybius" in selected_cipher or "Pigpen" in selected_cipher:
             self.key_entry.insert(0, "Anahtar gerekmez.")
             self.key_entry.config(state=tk.DISABLED, fg="#888")
+        elif "Hill Cipher" in selected_cipher:
+            self.key_entry.insert(0, "9,4,5,7 (2x2 Matris Elemanları: a,b,c,d - Sadece 2x2 desteklenir)")
         elif "Route Cipher" in selected_cipher:
             self.key_entry.insert(0, "5 (Matris Genişliği)")
         elif "Columnar" in selected_cipher:
@@ -152,6 +154,8 @@ class ClientApp:
         try:
             if "Pigpen" in cipher:
                 encrypted = self.crypto.pigpen_encrypt(msg)
+            elif "Hill Cipher" in cipher:
+                encrypted = self.crypto.hill_encrypt(msg, key)
             elif "Polybius" in cipher:
                 encrypted = self.crypto.polybius_encrypt(msg)
             elif "Route Cipher" in cipher:

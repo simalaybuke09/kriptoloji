@@ -1,4 +1,5 @@
 import hashlib
+import math
 
 class CryptoFunctions:
     
@@ -33,7 +34,121 @@ class CryptoFunctions:
             'Y': '□-DR.', 'Z': '□-DL.', ' ': ' '
         }
         self.PIGPEN_DECRYPT_MAP = {v: k for k, v in self.PIGPEN_ENCRYPT_MAP.items()}
+# --- YARDIMCI METOTLAR (HILL) ---
 
+    def _egcd(self, a, b):
+        """Genişletilmiş Öklid Algoritması (GCD ve Modüler Tersi Bulmak İçin)"""
+        if a == 0:
+            return (b, 0, 1)
+        else:
+            g, y, x = self._egcd(b % a, a)
+            return (g, x - (b // a) * y, y)
+
+    def mod_inverse(self, a, m):
+        """Modüler Ters (a^-1 mod m) hesaplar"""
+        # Şart: gcd(a, m) ≡ 1 ise, a^-1 mod m vardır. [cite: 415]
+        g, x, y = self._egcd(a, m)
+        if g != 1:
+            raise ValueError(f"Hill Anahtarı İçin Hata: Determinant ({a}) ile 26 aralarında asal değil. Geçersiz anahtar!")
+        else:
+            return x % m
+
+    def _char_to_num(self, char):
+        return ord(char.upper()) - ord('A')
+
+    def _num_to_char(self, num):
+        return chr(num % 26 + ord('A'))
+
+    def _get_hill_matrix(self, key_str):
+        """Anahtar dizesini kare matrise dönüştürür ve boyut kontrolü yapar."""
+        try:
+            k_flat = [int(i) for i in key_str.split(',')]
+        except ValueError:
+            raise ValueError("Hill Anahtarı sadece virgülle ayrılmış tam sayılardan oluşmalıdır!")
+
+        N = len(k_flat)
+        m = int(N**0.5) # Matris boyutu (m x m)
+
+        # Şart 1: Kare Matris Kontrolü
+        if m * m != N:
+            raise ValueError(f"Hill Anahtarı Hata: Anahtar eleman sayısı ({N}), kare matris oluşturmaya uygun değil. Kare matris olmalıdır!")
+
+        # Matrisi oluştur
+        K = [[0] * m for _ in range(m)]
+        for i in range(m):
+            for j in range(m):
+                K[i][j] = k_flat[i * m + j]
+        
+        return K, m
+
+    # --- HILL CIPHER (m x m MATRİS - Sadece m=2 tam desteklenir) ---
+    def hill_encrypt(self, text, key):
+        """Hill Cipher ile şifreleme"""
+        text = ''.join(c for c in text.upper() if c.isalpha())
+        K, m = self._get_hill_matrix(key)
+
+        if m != 2:
+            return f"❌ HATA: Hill Cipher, 2x2 dışındaki boyutlar için şifreleme fonksiyonu (matris çarpımı) içermemektedir (Boyut: {m}x{m})."
+
+        # Metin dolgusu
+        if len(text) % m != 0:
+            text += 'X' * (m - (len(text) % m))
+        
+        # Determinant kontrolü: det(K) = ad - bc (Sadece 2x2 için)
+        det = K[0][0] * K[1][1] - K[0][1] * K[1][0]
+        det = det % 26
+        
+        # Şart 2: GCD kontrolü [cite: 380]
+        if math.gcd(det, 26) != 1:
+            raise ValueError(f"Hill Anahtar Hata: Determinant ({det}), 26 ile aralarında asal değil. Geçersiz anahtar!")
+
+        # Şifreleme (m=2 için)
+        cipher_text = ""
+        for i in range(0, len(text), m):
+            P = [self._char_to_num(text[i]), self._char_to_num(text[i+1])]
+            
+            C1 = (K[0][0] * P[0] + K[0][1] * P[1]) % 26
+            C2 = (K[1][0] * P[0] + K[1][1] * P[1]) % 26
+            
+            cipher_text += self._num_to_char(C1) + self._num_to_char(C2)
+        
+        return cipher_text
+
+    def hill_decrypt(self, text, key):
+        """Hill Cipher ile deşifreleme"""
+        text = text.upper()
+        K, m = self._get_hill_matrix(key)
+
+        if m != 2:
+            return f"❌ HATA: Hill Cipher, 2x2 dışındaki boyutlar için deşifreleme fonksiyonu (ters matris) içermemektedir (Boyut: {m}x{m})."
+            
+        # 2x2 Ters Matris Hesaplama:
+        det = K[0][0] * K[1][1] - K[0][1] * K[1][0]
+        det_mod_26 = det % 26
+        
+        # Determinant Tersi
+        try:
+            det_inv = self.mod_inverse(det_mod_26, 26)
+        except ValueError as e:
+            raise e
+        
+        # Ters Matrisi (K^-1) Hesapla: K^-1 = det_inv * [[d, -b], [-c, a]] mod 26
+        K_inv = [
+            [(K[1][1] * det_inv) % 26, ((-K[0][1] % 26) * det_inv) % 26],
+            [((-K[1][0] % 26) * det_inv) % 26, (K[0][0] * det_inv) % 26]
+        ]
+
+        # Deşifreleme (m=2 için)
+        plain_text = ""
+        for i in range(0, len(text), m):
+            C = [self._char_to_num(text[i]), self._char_to_num(text[i+1])]
+            
+            P1 = (K_inv[0][0] * C[0] + K_inv[0][1] * C[1]) % 26
+            P2 = (K_inv[1][0] * C[0] + K_inv[1][1] * C[1]) % 26
+            
+            plain_text += self._num_to_char(P1) + self._num_to_char(P2)
+        
+        return plain_text
 
     # --- PIGPEN CIPHER ---
     def pigpen_encrypt(self, text):

@@ -151,7 +151,9 @@ class ServerApp:
     
     def decrypt_message(self, message, cipher, key):
         try:
-            if "Route Cipher" in cipher:
+            if "Polybius" in cipher:
+                return self.crypto.polybius_decrypt(message)
+            elif "Route Cipher" in cipher:
                 return self.crypto.route_decrypt(message, key)
             elif "Columnar" in cipher:
                 return self.crypto.columnar_decrypt(message, key)

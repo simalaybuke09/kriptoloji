@@ -47,7 +47,7 @@ class ClientApp:
         self.cipher_var = tk.StringVar()
         cipher_combo = ttk.Combobox(content, textvariable=self.cipher_var,
                                        font=("Arial", 11), width=50, state="readonly")
-        cipher_combo['values'] = ("Route Cipher (Spiral-Saat Yönü)", "Columnar Transposition (Anahtar Kelime)", "Caesar Cipher (Kaydırma)", 
+        cipher_combo['values'] = ("Polybius Cipher (Anahtarsız)", "Route Cipher (Spiral-Saat Yönü)", "Columnar Transposition (Anahtar Kelime)", "Caesar Cipher (Kaydırma)", 
                                      "Substitution Cipher", "Vigenere Cipher", "Playfair Cipher", 
                                      "Rail Fence Cipher (Ray Sayısı)", "Hash (MD5)")
         cipher_combo.current(0)
@@ -57,8 +57,9 @@ class ClientApp:
         tk.Label(content, text="🔑 Anahtar", 
                  font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         self.key_entry = tk.Entry(content, font=("Arial", 11), width=52)
-        # Başlangıçta Route için anahtarı ayarla
-        self.key_entry.insert(0, "5") 
+        # Başlangıçta Polybius için anahtarı ayarla
+        self.key_entry.insert(0, "Anahtar gerekmez.") 
+        self.key_entry.config(state=tk.DISABLED, fg="#888")
         self.key_entry.pack(pady=5)
         
         # ComboBox'a event bağla
@@ -109,8 +110,8 @@ class ClientApp:
         self.key_entry.config(state=tk.NORMAL, fg="black")
         self.key_entry.delete(0, tk.END)
 
-        if "Hash" in selected_cipher:
-            self.key_entry.insert(0, "MD5 için anahtar gerekmez.")
+        if "Hash" in selected_cipher or "Polybius" in selected_cipher:
+            self.key_entry.insert(0, "Anahtar gerekmez.")
             self.key_entry.config(state=tk.DISABLED, fg="#888")
         elif "Route Cipher" in selected_cipher:
             self.key_entry.insert(0, "5 (Matris Genişliği)")
@@ -154,15 +155,19 @@ class ClientApp:
             messagebox.showerror("Hata", "Lütfen bir mesaj girin!")
             return
         
-        if "Hash" not in cipher and not key:
+        # Polybius ve Hash dışındaki şifreler anahtar gerektirir
+        if ("Hash" not in cipher and "Polybius" not in cipher) and not key:
             messagebox.showerror("Hata", "Lütfen bir anahtar girin!")
             return
         
-        if "Hash" in cipher:
+        # Polybius ve Hash için anahtar değeri null yap
+        if "Hash" in cipher or "Polybius" in cipher:
             key = ""
         
         try:
-            if "Route Cipher" in cipher:
+            if "Polybius" in cipher:
+                encrypted = self.crypto.polybius_encrypt(msg)
+            elif "Route Cipher" in cipher:
                 encrypted = self.crypto.route_encrypt(msg, key)
             elif "Columnar" in cipher:
                 encrypted = self.crypto.columnar_encrypt(msg, key)
@@ -206,10 +211,15 @@ class ClientApp:
         cipher = self.cipher_var.get()
         
         try:
+            # Polybius ve Hash için anahtar değeri null yap
+            effective_key = ""
+            if "Hash" not in cipher and "Polybius" not in cipher:
+                effective_key = key
+            
             # JSON formatında gönder
             request = json.dumps({
                 'cipher': cipher,
-                'key': key if "Hash" not in cipher else "", 
+                'key': effective_key, 
                 'message': encrypted_msg
             })
             

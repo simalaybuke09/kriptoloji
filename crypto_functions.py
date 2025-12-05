@@ -1,6 +1,67 @@
 import hashlib
 
 class CryptoFunctions:
+    def __init__(self):
+        # Polybius Matrisi (İngilizce 5x5, I/J birleşik)
+        self.POLYBIUS_SQUARE = {
+            'A': (1, 1), 'B': (1, 2), 'C': (1, 3), 'D': (1, 4), 'E': (1, 5),
+            'F': (2, 1), 'G': (2, 2), 'H': (2, 3), 'I': (2, 4), 'J': (2, 4), # I ve J birleşik
+            'K': (2, 5), 'L': (3, 1), 'M': (3, 2), 'N': (3, 3), 'O': (3, 4),
+            'P': (3, 5), 'Q': (4, 1), 'R': (4, 2), 'S': (4, 3), 'T': (4, 4),
+            'U': (4, 5), 'V': (5, 1), 'W': (5, 2), 'X': (5, 3), 'Y': (5, 4),
+            'Z': (5, 5)
+        }
+        # Deşifreleme için ters matris (Koordinatlar Harflere)
+        self.REVERSE_POLYBIUS_SQUARE = {
+            (1, 1): 'A', (1, 2): 'B', (1, 3): 'C', (1, 4): 'D', (1, 5): 'E',
+            (2, 1): 'F', (2, 2): 'G', (2, 3): 'H', (2, 4): 'I/J', (2, 5): 'K',
+            (3, 1): 'L', (3, 2): 'M', (3, 3): 'N', (3, 4): 'O', (3, 5): 'P',
+            (4, 1): 'Q', (4, 2): 'R', (4, 3): 'S', (4, 4): 'T', (4, 5): 'U',
+            (5, 1): 'V', (5, 2): 'W', (5, 3): 'X', (5, 4): 'Y', (5, 5): 'Z'
+        }
+
+    # --- POLYBIUS CIPHER ---
+    def polybius_encrypt(self, text):
+        """Polybius Cipher ile şifreleme (Anahtar gerekmez)"""
+        text = ''.join(c for c in text.upper() if c.isalpha())
+        encrypted_coords = []
+        
+        for char in text:
+            # J'yi I olarak ele al
+            if char == 'J':
+                char = 'I'
+            
+            if char in self.POLYBIUS_SQUARE:
+                row, col = self.POLYBIUS_SQUARE[char]
+                # İki basamaklı sayı olarak ekle (örn: 4, 3 -> 43)
+                encrypted_coords.append(f"{row}{col}")
+        
+        return "".join(encrypted_coords)
+
+    def polybius_decrypt(self, text):
+        """Polybius Cipher ile deşifreleme"""
+        text = text.replace(' ', '')
+        decrypted_text = []
+        
+        if len(text) % 2 != 0:
+            raise ValueError("Deşifreleme için şifreli metin çift sayıda rakam içermelidir (koordinatlar).")
+            
+        for i in range(0, len(text), 2):
+            try:
+                row = int(text[i])
+                col = int(text[i+1])
+            except ValueError:
+                raise ValueError("Şifreli metin sadece rakamlardan oluşmalıdır.")
+            
+            coord = (row, col)
+            if coord in self.REVERSE_POLYBIUS_SQUARE:
+                # I/J birleşimi için I'yı döndür
+                decrypted_char = self.REVERSE_POLYBIUS_SQUARE[coord].split('/')[0]
+                decrypted_text.append(decrypted_char)
+            else:
+                decrypted_text.append('?') # Bilinmeyen koordinat
+                
+        return "".join(decrypted_text)
     
     # --- YARDIMCI METOTLAR ---
     def _get_key_order(self, key):

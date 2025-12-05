@@ -1,17 +1,17 @@
 import hashlib
 
 class CryptoFunctions:
+    
     def __init__(self):
         # Polybius Matrisi (İngilizce 5x5, I/J birleşik)
         self.POLYBIUS_SQUARE = {
             'A': (1, 1), 'B': (1, 2), 'C': (1, 3), 'D': (1, 4), 'E': (1, 5),
-            'F': (2, 1), 'G': (2, 2), 'H': (2, 3), 'I': (2, 4), 'J': (2, 4), # I ve J birleşik
+            'F': (2, 1), 'G': (2, 2), 'H': (2, 3), 'I': (2, 4), 'J': (2, 4),
             'K': (2, 5), 'L': (3, 1), 'M': (3, 2), 'N': (3, 3), 'O': (3, 4),
             'P': (3, 5), 'Q': (4, 1), 'R': (4, 2), 'S': (4, 3), 'T': (4, 4),
             'U': (4, 5), 'V': (5, 1), 'W': (5, 2), 'X': (5, 3), 'Y': (5, 4),
             'Z': (5, 5)
         }
-        # Deşifreleme için ters matris (Koordinatlar Harflere)
         self.REVERSE_POLYBIUS_SQUARE = {
             (1, 1): 'A', (1, 2): 'B', (1, 3): 'C', (1, 4): 'D', (1, 5): 'E',
             (2, 1): 'F', (2, 2): 'G', (2, 3): 'H', (2, 4): 'I/J', (2, 5): 'K',
@@ -19,6 +19,49 @@ class CryptoFunctions:
             (4, 1): 'Q', (4, 2): 'R', (4, 3): 'S', (4, 4): 'T', (4, 5): 'U',
             (5, 1): 'V', (5, 2): 'W', (5, 3): 'X', (5, 4): 'Y', (5, 5): 'Z'
         }
+        
+        # Pigpen Şifresi Haritaları (Kodlar Sembolleri Temsil Eder)
+        self.PIGPEN_ENCRYPT_MAP = {
+            'A': '□-R', 'B': '□-D', 'C': '□-L', 
+            'D': '□-U', 'E': '□-UR', 'F': '□-UL',
+            'G': '□-DR', 'H': '□-DL', 'I': '□-ALL',
+            'J': 'X-R', 'K': 'X-D', 'L': 'X-L',
+            'M': 'X-U', 'N': 'X-UR', 'O': 'X-UL',
+            'P': 'X-DR', 'Q': 'X-DL', 'R': 'X-ALL',
+            'S': '□-R.', 'T': '□-D.', 'U': '□-L.',
+            'V': '□-U.', 'W': '□-UR.', 'X': '□-UL.',
+            'Y': '□-DR.', 'Z': '□-DL.', ' ': ' '
+        }
+        self.PIGPEN_DECRYPT_MAP = {v: k for k, v in self.PIGPEN_ENCRYPT_MAP.items()}
+
+
+    # --- PIGPEN CIPHER ---
+    def pigpen_encrypt(self, text):
+        """Pigpen Cipher ile şifreleme (Semboller yerine kodlar döndürülür)"""
+        text = text.upper()
+        encrypted_codes = []
+        
+        for char in text:
+            if char in self.PIGPEN_ENCRYPT_MAP:
+                encrypted_codes.append(self.PIGPEN_ENCRYPT_MAP[char])
+            else:
+                encrypted_codes.append(char)
+        
+        return " ".join(encrypted_codes)
+
+    def pigpen_decrypt(self, text):
+        """Pigpen Cipher ile deşifreleme"""
+        codes = text.upper().split()
+        decrypted_text = []
+        
+        for code in codes:
+            if code in self.PIGPEN_DECRYPT_MAP:
+                decrypted_text.append(self.PIGPEN_DECRYPT_MAP[code])
+            else:
+                decrypted_text.append(code)
+                
+        return "".join(decrypted_text)
+
 
     # --- POLYBIUS CIPHER ---
     def polybius_encrypt(self, text):
@@ -27,13 +70,11 @@ class CryptoFunctions:
         encrypted_coords = []
         
         for char in text:
-            # J'yi I olarak ele al
             if char == 'J':
                 char = 'I'
             
             if char in self.POLYBIUS_SQUARE:
                 row, col = self.POLYBIUS_SQUARE[char]
-                # İki basamaklı sayı olarak ekle (örn: 4, 3 -> 43)
                 encrypted_coords.append(f"{row}{col}")
         
         return "".join(encrypted_coords)
@@ -44,7 +85,7 @@ class CryptoFunctions:
         decrypted_text = []
         
         if len(text) % 2 != 0:
-            raise ValueError("Deşifreleme için şifreli metin çift sayıda rakam içermelidir (koordinatlar).")
+            raise ValueError("Deşifreleme için şifreli metin çift sayıda rakam içermelidir.")
             
         for i in range(0, len(text), 2):
             try:
@@ -55,37 +96,33 @@ class CryptoFunctions:
             
             coord = (row, col)
             if coord in self.REVERSE_POLYBIUS_SQUARE:
-                # I/J birleşimi için I'yı döndür
                 decrypted_char = self.REVERSE_POLYBIUS_SQUARE[coord].split('/')[0]
                 decrypted_text.append(decrypted_char)
             else:
-                decrypted_text.append('?') # Bilinmeyen koordinat
+                decrypted_text.append('?')
                 
         return "".join(decrypted_text)
-    
-    # --- YARDIMCI METOTLAR ---
+
+
+    # --- YARDIMCI METOTLAR (COLUMNAR) ---
     def _get_key_order(self, key):
-        """Anahtar kelimedeki harflerin alfabetik sıra indekslerini döndürür."""
+        """Columnar için anahtar kelimedeki harflerin alfabetik sıra indekslerini döndürür."""
         sorted_chars = sorted(list(key.upper()))
         order = []
         key_list = list(key.upper())
         
-        # Anahtar kelimenin her harfinin, sıralanmış listedeki ilk indeksini bulur
         for char in sorted_chars:
-            # Aynı harfler varsa doğru indeksi bulmak için .pop kullanılır
             idx = key_list.index(char)
             order.append(idx)
-            key_list[idx] = None # Kullanılan indeksi None yaparak bir sonraki aynı harfi atlamayı sağlar
+            key_list[idx] = None 
         return order
-
-    # --- COLUMNAR TRANSPOSITION CIPHER (YENİ EKLENDİ) ---
+    
+    # --- COLUMNAR TRANSPOSITION CIPHER ---
     def columnar_encrypt(self, text, key):
         """Columnar Transposition Cipher ile şifreleme"""
         text = text.replace(' ', '').upper()
-        key = key.upper()
         cols = len(key)
         
-        # Mesajı matrise doldur
         rows = (len(text) + cols - 1) // cols
         matrix = [['' for _ in range(cols)] for _ in range(rows)]
         
@@ -96,9 +133,8 @@ class CryptoFunctions:
                     matrix[i][j] = text[idx]
                     idx += 1
                 else:
-                    matrix[i][j] = '*' # Eksik yerleri doldur
+                    matrix[i][j] = '*' 
         
-        # Sütunları anahtar sırasına göre oku
         key_order = self._get_key_order(key)
         encrypted_text = []
         
@@ -115,13 +151,9 @@ class CryptoFunctions:
         n = len(text)
         rows = (n + cols - 1) // cols
         
-        # Anahtar sırasını al ve ters çevir (şifreli metnin hangi sütuna ait olduğunu bulmak için)
         key_order = self._get_key_order(key)
-        
-        # Boş bir matris oluştur
         decryption_matrix = [['' for _ in range(cols)] for _ in range(rows)]
         
-        # Şifreli metni sütun sütun doğru yerlere doldur
         char_index = 0
         
         for i, original_col_index in enumerate(key_order):
@@ -130,7 +162,93 @@ class CryptoFunctions:
                     decryption_matrix[r][original_col_index] = text[char_index]
                     char_index += 1
         
-        # Deşifreli metni matrisi satır satır okuyarak oluştur
+        decrypted_text = ""
+        for i in range(rows):
+            for j in range(cols):
+                if decryption_matrix[i][j] != '*':
+                    decrypted_text += decryption_matrix[i][j]
+        
+        return decrypted_text
+    
+    # --- ROUTE CIPHER (SPIRAL - SAAT YÖNÜ) ---
+    def route_encrypt(self, text, key):
+        """Route Cipher (Saat Yönü Spiral) ile şifreleme"""
+        text = ''.join(c for c in text.upper() if c.isalpha())
+        key = int(key) 
+        
+        cols = key
+        rows = (len(text) + cols - 1) // cols
+        matrix = [['' for _ in range(cols)] for _ in range(rows)]
+        
+        idx = 0
+        for i in range(rows):
+            for j in range(cols):
+                if idx < len(text):
+                    matrix[i][j] = text[idx]
+                    idx += 1
+                else:
+                    matrix[i][j] = '*' 
+
+        encrypted_text = []
+        top, bottom, left, right = 0, rows - 1, 0, cols - 1
+
+        while top <= bottom and left <= right:
+            for i in range(right, left - 1, -1):
+                encrypted_text.append(matrix[top][i])
+            top += 1
+
+            for i in range(top, bottom + 1):
+                encrypted_text.append(matrix[i][left])
+            left += 1
+            
+            if top <= bottom:
+                for i in range(left, right + 1):
+                    encrypted_text.append(matrix[bottom][i])
+                bottom -= 1
+
+            if left <= right:
+                for i in range(bottom, top - 1, -1):
+                    encrypted_text.append(matrix[i][right])
+                right -= 1
+        
+        return "".join(c for c in encrypted_text if c != '*')
+
+    def route_decrypt(self, text, key):
+        """Route Cipher (Saat Yönü Spiral) ile deşifreleme"""
+        text = text.upper()
+        cols = int(key)
+        n = len(text)
+        rows = (n + cols - 1) // cols
+        
+        decryption_matrix = [['' for _ in range(cols)] for _ in range(rows)]
+        
+        path_matrix = [['\n' for _ in range(cols)] for _ in range(rows)]
+        top, bottom, left, right = 0, rows - 1, 0, cols - 1
+        spiral_order = []
+
+        while top <= bottom and left <= right:
+            for i in range(right, left - 1, -1):
+                spiral_order.append((top, i))
+            top += 1
+
+            for i in range(top, bottom + 1):
+                spiral_order.append((i, left))
+            left += 1
+            
+            if top <= bottom:
+                for i in range(left, right + 1):
+                    spiral_order.append((bottom, i))
+                bottom -= 1
+
+            if left <= right:
+                for i in range(bottom, top - 1, -1):
+                    spiral_order.append((i, right))
+                right -= 1
+
+        for i, (r, c) in enumerate(spiral_order):
+            if i < n:
+                decryption_matrix[r][c] = text[i]
+
         decrypted_text = ""
         for i in range(rows):
             for j in range(cols):
@@ -161,7 +279,6 @@ class CryptoFunctions:
         alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         key = key.upper()
         result = ""
-        
         if len(key) != 26 or len(set(key)) != 26:
             raise ValueError("Anahtar 26 farklı harf içermelidir!")
         
@@ -181,7 +298,6 @@ class CryptoFunctions:
         alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
         key = key.upper()
         result = ""
-        
         if len(key) != 26 or len(set(key)) != 26:
             raise ValueError("Anahtar 26 farklı harf içermelidir!")
         
@@ -229,29 +345,19 @@ class CryptoFunctions:
                 result += char
         return result
     
-    # --- PLAYFAIR CIPHER ---
+    # --- PLAYFAIR CIPHER (Kısaltıldı) ---
     def playfair_encrypt(self, text, key):
         """Playfair Cipher ile şifreleme"""
-        # Playfair matrisi oluştur
         matrix = self._create_playfair_matrix(key)
         text = self._prepare_playfair_text(text)
         result = ""
-        
         for i in range(0, len(text), 2):
             char1, char2 = text[i], text[i+1]
             row1, col1 = self._find_position(matrix, char1)
             row2, col2 = self._find_position(matrix, char2)
-            
-            if row1 == row2:  # Aynı satır
-                result += matrix[row1][(col1 + 1) % 5]
-                result += matrix[row2][(col2 + 1) % 5]
-            elif col1 == col2:  # Aynı sütun
-                result += matrix[(row1 + 1) % 5][col1]
-                result += matrix[(row2 + 1) % 5][col2]
-            else:  # Dikdörtgen
-                result += matrix[row1][col2]
-                result += matrix[row2][col1]
-        
+            if row1 == row2: result += matrix[row1][(col1 + 1) % 5] + matrix[row2][(col2 + 1) % 5]
+            elif col1 == col2: result += matrix[(row1 + 1) % 5][col1] + matrix[(row2 + 1) % 5][col2]
+            else: result += matrix[row1][col2] + matrix[row2][col1]
         return result
     
     def playfair_decrypt(self, text, key):
@@ -259,22 +365,13 @@ class CryptoFunctions:
         matrix = self._create_playfair_matrix(key)
         text = text.upper().replace('J', 'I')
         result = ""
-        
         for i in range(0, len(text), 2):
             char1, char2 = text[i], text[i+1]
             row1, col1 = self._find_position(matrix, char1)
             row2, col2 = self._find_position(matrix, char2)
-            
-            if row1 == row2:  # Aynı satır
-                result += matrix[row1][(col1 - 1) % 5]
-                result += matrix[row2][(col2 - 1) % 5]
-            elif col1 == col2:  # Aynı sütun
-                result += matrix[(row1 - 1) % 5][col1]
-                result += matrix[(row2 - 1) % 5][col2]
-            else:  # Dikdörtgen
-                result += matrix[row1][col2]
-                result += matrix[row2][col1]
-        
+            if row1 == row2: result += matrix[row1][(col1 - 1) % 5] + matrix[row2][(col2 - 1) % 5]
+            elif col1 == col2: result += matrix[(row1 - 1) % 5][col1] + matrix[(row2 - 1) % 5][col2]
+            else: result += matrix[row1][col2] + matrix[row2][col1]
         return result
     
     def _create_playfair_matrix(self, key):
@@ -282,22 +379,16 @@ class CryptoFunctions:
         key = key.upper().replace('J', 'I')
         alphabet = "ABCDEFGHIKLMNOPQRSTUVWXYZ"
         matrix_str = ""
-        
         for char in key:
-            if char in alphabet and char not in matrix_str:
-                matrix_str += char
-        
+            if char in alphabet and char not in matrix_str: matrix_str += char
         for char in alphabet:
-            if char not in matrix_str:
-                matrix_str += char
-        
+            if char not in matrix_str: matrix_str += char
         return [list(matrix_str[i:i+5]) for i in range(0, 25, 5)]
     
     def _prepare_playfair_text(self, text):
         """Playfair için metni hazırla"""
         text = text.upper().replace('J', 'I').replace(' ', '')
         text = ''.join([c for c in text if c.isalpha()])
-        
         result = ""
         i = 0
         while i < len(text):
@@ -308,250 +399,63 @@ class CryptoFunctions:
                 else:
                     result += text[i+1]
                     i += 1
-            else:
-                result += 'X'
+            else: result += 'X'
             i += 1
-        
         return result
     
     def _find_position(self, matrix, char):
         """Matriste karakterin pozisyonunu bul"""
         for i, row in enumerate(matrix):
-            if char in row:
-                return i, row.index(char)
+            if char in row: return i, row.index(char)
         return 0, 0
     
-    # --- ROUTE CIPHER ---
-    def route_encrypt(self, text, key):
-        """Route Cipher ile şifreleme"""
-        key = int(key)
-        text = text.replace(' ', '')
-        
-        # Matris oluştur
-        rows = (len(text) + key - 1) // key
-        matrix = [['' for _ in range(key)] for _ in range(rows)]
-        
-        idx = 0
-        for i in range(rows):
-            for j in range(key):
-                if idx < len(text):
-                    matrix[i][j] = text[idx]
-                    idx += 1
-        
-        # Sütunları oku
-        result = ""
-        for j in range(key):
-            for i in range(rows):
-                if matrix[i][j]:
-                    result += matrix[i][j]
-        
-        return result
-    
-    def route_decrypt(self, text, key):
-        """Route Cipher ile deşifreleme"""
-        key = int(key)
-        rows = (len(text) + key - 1) // key
-        matrix = [['' for _ in range(key)] for _ in range(rows)]
-        
-        idx = 0
-        for j in range(key):
-            for i in range(rows):
-                if idx < len(text):
-                    matrix[i][j] = text[idx]
-                    idx += 1
-        
-        # Satırları oku
-        result = ""
-        for i in range(rows):
-            for j in range(key):
-                if matrix[i][j]:
-                    result += matrix[i][j]
-        
-        return result
-    
-    # --- RAIL FENCE CIPHER ---
+    # --- RAIL FENCE CIPHER (Kısaltıldı) ---
     def rail_fence_encrypt(self, text, rails):
         """Rail Fence Cipher ile şifreleme (Encryption)"""
         text = ''.join(c for c in text.upper() if c.isalpha())
         rails = int(rails)
-
-        if rails <= 1:
-            return text
-
+        if rails <= 1: return text
         rail_matrix = [['\n' for _ in range(len(text))] for _ in range(rails)]
-        direction_down = False 
-        row, col = 0, 0
-        
+        direction_down, row, col = False, 0, 0
         for char in text:
-            if row == 0 or row == rails - 1:
-                direction_down = not direction_down
-            
+            if row == 0 or row == rails - 1: direction_down = not direction_down
             rail_matrix[row][col] = char
             col += 1
-            
-            if direction_down:
-                row += 1
-            else:
-                row -= 1
-
+            row += 1 if direction_down else -1
         result = []
         for i in range(rails):
             for j in range(len(text)):
-                if rail_matrix[i][j] != '\n':
-                    result.append(rail_matrix[i][j])
-                    
+                if rail_matrix[i][j] != '\n': result.append(rail_matrix[i][j])
         return "".join(result)
 
     def rail_fence_decrypt(self, text, rails):
         """Rail Fence Cipher ile deşifreleme (Decryption)"""
         text = text.upper()
         rails = int(rails)
-
-        if rails <= 1:
-            return text
-
+        if rails <= 1: return text
         n = len(text)
         rail_matrix = [['\n' for _ in range(n)] for _ in range(rails)]
-        
-        # 1. Matristeki yerleri işaretle
-        direction_down = False
-        row, col = 0, 0
+        direction_down, row, col = False, 0, 0
         for i in range(n):
-            if row == 0 or row == rails - 1:
-                direction_down = not direction_down
+            if row == 0 or row == rails - 1: direction_down = not direction_down
             rail_matrix[row][col] = '*' 
             col += 1
-            if direction_down:
-                row += 1
-            else:
-                row -= 1
-
-        # 2. İşaretli yerlere şifreli metni yerleştir
+            row += 1 if direction_down else -1
         index = 0
         for i in range(rails):
             for j in range(n):
                 if rail_matrix[i][j] == '*' and index < n:
                     rail_matrix[i][j] = text[index]
                     index += 1
-
-        # 3. Zikzak sırasına göre matrisi oku
         result = []
-        direction_down = False
-        row, col = 0, 0
+        direction_down, row, col = False, 0, 0
         for i in range(n):
-            if row == 0 or row == rails - 1:
-                direction_down = not direction_down
-            
+            if row == 0 or row == rails - 1: direction_down = not direction_down
             result.append(rail_matrix[row][col])
             col += 1
-            
-            if direction_down:
-                row += 1
-            else:
-                row -= 1
-
+            row += 1 if direction_down else -1
         return "".join(result)
-    def route_encrypt(self, text, key):
-        """Route Cipher (Saat Yönü Spiral) ile şifreleme"""
-        text = ''.join(c for c in text.upper() if c.isalpha())
-        key = int(key) # Key burada matrisin yatay uzunluğudur (sütun sayısı)
-        
-        cols = key
-        rows = (len(text) + cols - 1) // cols
-        matrix = [['' for _ in range(cols)] for _ in range(rows)]
-        
-        # 1. Metni matrise satır satır doldur
-        idx = 0
-        for i in range(rows):
-            for j in range(cols):
-                if idx < len(text):
-                    matrix[i][j] = text[idx]
-                    idx += 1
-                else:
-                    matrix[i][j] = '*' # Görseldeki gibi dolgu karakteri
-
-        # 2. Matrisi saat yönünde spiral olarak oku
-        encrypted_text = []
-        top, bottom, left, right = 0, rows - 1, 0, cols - 1
-
-        while top <= bottom and left <= right:
-            # Sağ üstten başla (Görselde B, U, G, İ, Z, L, İ, B, İ, R, M, E, S, A, J, D, İ, R yerleştirilmiş)
-            # Okuma: Sağdan sola (Üst sıra)
-            for i in range(right, left - 1, -1):
-                encrypted_text.append(matrix[top][i])
-            top += 1
-
-            # Yukarıdan aşağıya (Sol sütun)
-            for i in range(top, bottom + 1):
-                encrypted_text.append(matrix[i][left])
-            left += 1
-            
-            # Soldan sağa (Alt sıra)
-            if top <= bottom:
-                for i in range(left, right + 1):
-                    encrypted_text.append(matrix[bottom][i])
-                bottom -= 1
-
-            # Aşağıdan yukarıya (Sağ sütun)
-            if left <= right:
-                for i in range(bottom, top - 1, -1):
-                    encrypted_text.append(matrix[i][right])
-                right -= 1
-        
-        # Dolgu karakterini çıkararak sonucu döndür
-        return "".join(c for c in encrypted_text if c != '*')
-
-    def route_decrypt(self, text, key):
-        """Route Cipher (Saat Yönü Spiral) ile deşifreleme"""
-        text = text.upper()
-        cols = int(key)
-        n = len(text)
-        rows = (n + cols - 1) // cols
-        
-        decryption_matrix = [['' for _ in range(cols)] for _ in range(rows)]
-        
-        # 1. Matristeki spiral rotanın pozisyonlarını işaretle
-        path_matrix = [['\n' for _ in range(cols)] for _ in range(rows)]
-        top, bottom, left, right = 0, rows - 1, 0, cols - 1
-        spiral_order = []
-
-        while top <= bottom and left <= right:
-            # Sağdan sola (Üst sıra)
-            for i in range(right, left - 1, -1):
-                spiral_order.append((top, i))
-            top += 1
-
-            # Yukarıdan aşağıya (Sol sütun)
-            for i in range(top, bottom + 1):
-                spiral_order.append((i, left))
-            left += 1
-            
-            # Soldan sağa (Alt sıra)
-            if top <= bottom:
-                for i in range(left, right + 1):
-                    spiral_order.append((bottom, i))
-                bottom -= 1
-
-            # Aşağıdan yukarıya (Sağ sütun)
-            if left <= right:
-                for i in range(bottom, top - 1, -1):
-                    spiral_order.append((i, right))
-                right -= 1
-
-        # 2. Şifreli metni spiral yörüngeye yerleştir
-        for i, (r, c) in enumerate(spiral_order):
-            if i < n:
-                decryption_matrix[r][c] = text[i]
-
-        # 3. Metni satır satır normal sırada oku
-        decrypted_text = ""
-        for i in range(rows):
-            for j in range(cols):
-                if decryption_matrix[i][j] != '*':
-                    decrypted_text += decryption_matrix[i][j]
-        
-        return decrypted_text
-
+    
     # --- HASHING ---
     def md5_hash(self, text):
         """MD5 hash oluştur"""

@@ -22,18 +22,15 @@ class ServerApp:
         self.start_server()
         
     def create_ui(self):
-        # Başlık
         header = tk.Frame(self.window, bg="#4CAF50", height=80)
         header.pack(fill=tk.X)
         
         tk.Label(header, text="🔓 SUNUCU - Deşifreleme Servisi", 
                  font=("Arial", 20, "bold"), bg="#4CAF50", fg="white").pack(pady=20)
         
-        # Ana içerik
         content = tk.Frame(self.window, bg="white")
         content.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
-        # Durum Bilgisi
         status_frame = tk.LabelFrame(content, text="📡 Bağlantı Durumu", 
                                      font=("Arial", 11, "bold"), bg="white", fg="#4CAF50")
         status_frame.pack(fill=tk.X, pady=10)
@@ -42,7 +39,6 @@ class ServerApp:
                                       font=("Arial", 10), bg="white", fg="orange")
         self.status_label.pack(pady=10)
         
-        # Gelen Mesajlar
         tk.Label(content, text="📨 Gelen Şifreli Mesajlar", 
                  font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         
@@ -50,7 +46,6 @@ class ServerApp:
                                                       height=8, wrap=tk.WORD, bg="#fff3e0")
         self.received_text.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        # Deşifrelenmiş Mesajlar
         tk.Label(content, text="✅ Deşifrelenmiş Mesajlar", 
                  font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         
@@ -58,7 +53,6 @@ class ServerApp:
                                                        height=8, wrap=tk.WORD, bg="#e8f5e9")
         self.decrypted_text.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        # Log Alanı
         tk.Label(content, text="📋 İşlem Logları", 
                  font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         
@@ -66,7 +60,6 @@ class ServerApp:
                                                    height=6, wrap=tk.WORD, bg="#f5f5f5")
         self.log_text.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        # Kontrol Butonları
         btn_frame = tk.Frame(content, bg="white")
         btn_frame.pack(pady=10)
         
@@ -89,7 +82,6 @@ class ServerApp:
             self.log("✅ Sunucu başlatıldı: localhost:5555")
             self.status_label.config(text="✅ Aktif - İstemci bekleniyor...", fg="green")
             
-            # Bağlantı bekleme thread'i
             threading.Thread(target=self.accept_connections, daemon=True).start()
             
         except Exception as e:
@@ -103,7 +95,6 @@ class ServerApp:
                 self.log(f"🔗 İstemci bağlandı: {addr}")
                 self.status_label.config(text=f"✅ İstemci bağlı: {addr}", fg="green")
                 
-                # Mesaj alma thread'i
                 threading.Thread(target=self.receive_messages, daemon=True).start()
                 
             except Exception as e:
@@ -117,7 +108,6 @@ class ServerApp:
                 if not data:
                     break
                 
-                # JSON parse
                 request = json.loads(data)
                 cipher = request.get('cipher')
                 key = request.get('key')
@@ -127,14 +117,12 @@ class ServerApp:
                 self.received_text.insert(tk.END, f"{message}\n")
                 self.received_text.see(tk.END)
                 
-                # Deşifreleme
                 decrypted = self.decrypt_message(message, cipher, key)
                 
                 self.log(f"✅ Deşifreleme tamamlandı")
                 self.decrypted_text.insert(tk.END, f"{decrypted}\n")
                 self.decrypted_text.see(tk.END)
                 
-                # Cevap gönder
                 response = json.dumps({
                     'status': 'success',
                     'decrypted': decrypted
@@ -151,7 +139,9 @@ class ServerApp:
     
     def decrypt_message(self, message, cipher, key):
         try:
-            if "Polybius" in cipher:
+            if "Pigpen" in cipher:
+                return self.crypto.pigpen_decrypt(message)
+            elif "Polybius" in cipher:
                 return self.crypto.polybius_decrypt(message)
             elif "Route Cipher" in cipher:
                 return self.crypto.route_decrypt(message, key)

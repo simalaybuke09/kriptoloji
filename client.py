@@ -20,18 +20,15 @@ class ClientApp:
         self.connect_to_server()
         
     def create_ui(self):
-        # Başlık
         header = tk.Frame(self.window, bg="#2196F3", height=80)
         header.pack(fill=tk.X)
         
         tk.Label(header, text="🔒 İSTEMCİ - Şifreleme Servisi", 
                  font=("Arial", 20, "bold"), bg="#2196F3", fg="white").pack(pady=20)
         
-        # Ana içerik
         content = tk.Frame(self.window, bg="white")
         content.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
         
-        # Durum Bilgisi
         status_frame = tk.LabelFrame(content, text="📡 Bağlantı Durumu", 
                                      font=("Arial", 11, "bold"), bg="white", fg="#2196F3")
         status_frame.pack(fill=tk.X, pady=10)
@@ -40,38 +37,32 @@ class ClientApp:
                                       font=("Arial", 10), bg="white", fg="orange")
         self.status_label.pack(pady=10)
         
-        # Şifreleme Yöntemi
         tk.Label(content, text="🔐 Şifreleme Yöntemi", 
                  font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         
         self.cipher_var = tk.StringVar()
         cipher_combo = ttk.Combobox(content, textvariable=self.cipher_var,
                                        font=("Arial", 11), width=50, state="readonly")
-        cipher_combo['values'] = ("Polybius Cipher (Anahtarsız)", "Route Cipher (Spiral-Saat Yönü)", "Columnar Transposition (Anahtar Kelime)", "Caesar Cipher (Kaydırma)", 
+        cipher_combo['values'] = ("Pigpen Cipher (Anahtarsız)", "Polybius Cipher (Anahtarsız)", "Route Cipher (Spiral-Saat Yönü)", "Columnar Transposition (Anahtar Kelime)", "Caesar Cipher (Kaydırma)", 
                                      "Substitution Cipher", "Vigenere Cipher", "Playfair Cipher", 
                                      "Rail Fence Cipher (Ray Sayısı)", "Hash (MD5)")
         cipher_combo.current(0)
         cipher_combo.pack(pady=5)
         
-        # Anahtar
         tk.Label(content, text="🔑 Anahtar", 
                  font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         self.key_entry = tk.Entry(content, font=("Arial", 11), width=52)
-        # Başlangıçta Polybius için anahtarı ayarla
         self.key_entry.insert(0, "Anahtar gerekmez.") 
         self.key_entry.config(state=tk.DISABLED, fg="#888")
         self.key_entry.pack(pady=5)
         
-        # ComboBox'a event bağla
         cipher_combo.bind("<<ComboboxSelected>>", self.update_key_field)
         
-        # Mesaj
         tk.Label(content, text="💬 Mesaj", 
                  font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         self.msg_text = tk.Text(content, font=("Arial", 11), height=5, width=65, wrap=tk.WORD)
         self.msg_text.pack(pady=5)
         
-        # Butonlar
         btn_frame = tk.Frame(content, bg="white")
         btn_frame.pack(pady=15)
         
@@ -83,21 +74,18 @@ class ClientApp:
                    bg="#4CAF50", fg="white", font=("Arial", 11, "bold"),
                    padx=30, pady=10, relief=tk.FLAT, cursor="hand2").pack(side=tk.LEFT, padx=5)
         
-        # Şifrelenmiş Mesaj
         tk.Label(content, text="🔐 Şifrelenmiş Mesaj", 
                  font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         self.encrypted_text = tk.Text(content, font=("Courier", 10), 
                                       height=5, width=65, wrap=tk.WORD, bg="#e3f2fd")
         self.encrypted_text.pack(pady=5)
         
-        # Sunucudan Gelen Cevap
         tk.Label(content, text="✅ Sunucudan Gelen Deşifrelenmiş Mesaj", 
                  font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         self.response_text = tk.Text(content, font=("Courier", 10), 
                                      height=5, width=65, wrap=tk.WORD, bg="#e8f5e9")
         self.response_text.pack(pady=5)
         
-        # Log Alanı
         tk.Label(content, text="📋 İşlem Logları", 
                  font=("Arial", 10, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
         self.log_text = scrolledtext.ScrolledText(content, font=("Courier", 9), 
@@ -105,12 +93,11 @@ class ClientApp:
         self.log_text.pack(fill=tk.BOTH, expand=True, pady=5)
         
     def update_key_field(self, event):
-        """Seçilen şifreye göre anahtar giriş alanını ayarlar."""
         selected_cipher = self.cipher_var.get()
         self.key_entry.config(state=tk.NORMAL, fg="black")
         self.key_entry.delete(0, tk.END)
 
-        if "Hash" in selected_cipher or "Polybius" in selected_cipher:
+        if "Hash" in selected_cipher or "Polybius" in selected_cipher or "Pigpen" in selected_cipher:
             self.key_entry.insert(0, "Anahtar gerekmez.")
             self.key_entry.config(state=tk.DISABLED, fg="#888")
         elif "Route Cipher" in selected_cipher:
@@ -155,17 +142,17 @@ class ClientApp:
             messagebox.showerror("Hata", "Lütfen bir mesaj girin!")
             return
         
-        # Polybius ve Hash dışındaki şifreler anahtar gerektirir
-        if ("Hash" not in cipher and "Polybius" not in cipher) and not key:
+        if ("Hash" not in cipher and "Polybius" not in cipher and "Pigpen" not in cipher) and not key:
             messagebox.showerror("Hata", "Lütfen bir anahtar girin!")
             return
         
-        # Polybius ve Hash için anahtar değeri null yap
-        if "Hash" in cipher or "Polybius" in cipher:
+        if "Hash" in cipher or "Polybius" in cipher or "Pigpen" in cipher:
             key = ""
         
         try:
-            if "Polybius" in cipher:
+            if "Pigpen" in cipher:
+                encrypted = self.crypto.pigpen_encrypt(msg)
+            elif "Polybius" in cipher:
                 encrypted = self.crypto.polybius_encrypt(msg)
             elif "Route Cipher" in cipher:
                 encrypted = self.crypto.route_encrypt(msg, key)
@@ -211,12 +198,10 @@ class ClientApp:
         cipher = self.cipher_var.get()
         
         try:
-            # Polybius ve Hash için anahtar değeri null yap
             effective_key = ""
-            if "Hash" not in cipher and "Polybius" not in cipher:
+            if "Hash" not in cipher and "Polybius" not in cipher and "Pigpen" not in cipher:
                 effective_key = key
             
-            # JSON formatında gönder
             request = json.dumps({
                 'cipher': cipher,
                 'key': effective_key, 
@@ -226,7 +211,6 @@ class ClientApp:
             self.client_socket.send(request.encode('utf-8'))
             self.log(f"📤 Şifreli mesaj sunucuya gönderildi")
             
-            # Cevap bekle
             response = self.client_socket.recv(4096).decode('utf-8')
             data = json.loads(response)
             

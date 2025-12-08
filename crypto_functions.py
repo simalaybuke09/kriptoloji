@@ -1,5 +1,8 @@
 import hashlib
 import math
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import padding
 
 class CryptoFunctions:
     
@@ -575,3 +578,47 @@ class CryptoFunctions:
     def md5_hash(self, text):
         """MD5 hash oluştur"""
         return hashlib.md5(text.encode()).hexdigest()
+    
+    def aes_encrypt_lib(self, plaintext, key_bytes, iv_bytes):
+        """AES-128 ile şifreleme (Kütüphaneli). CFB modu ve PKCS7 dolgusu kullanır."""
+        
+        if len(key_bytes) != 16:
+            raise ValueError("AES Anahtarı 16 byte (128 bit) uzunluğunda olmalıdır.")
+        if len(iv_bytes) != 16:
+            raise ValueError("AES IV (Başlatma Vektörü) 16 byte uzunluğunda olmalıdır.")
+            
+        backend = default_backend()
+        cipher = Cipher(algorithms.AES(key_bytes), modes.CFB(iv_bytes), backend=backend)
+        encryptor = cipher.encryptor()
+
+        # Dolgu (Padding) Uygula
+        padder = padding.PKCS7(algorithms.AES.block_size).padder()
+        padded_data = padder.update(plaintext.encode('utf-8')) + padder.finalize()
+        
+        # Şifreleme
+        ciphertext = encryptor.update(padded_data) + encryptor.finalize()
+        
+        # Şifreli veriyi kolay transfer için hex dizesine dönüştür
+        return ciphertext.hex()
+
+    def aes_decrypt_lib(self, ciphertext_hex, key_bytes, iv_bytes):
+        """AES-128 ile deşifreleme (Kütüphaneli)."""
+
+        if len(key_bytes) != 16:
+            raise ValueError("AES Anahtarı 16 byte (128 bit) uzunluğunda olmalıdır.")
+        if len(iv_bytes) != 16:
+            raise ValueError("AES IV (Başlatma Vektörü) 16 byte uzunluğunda olmalıdır.")
+            
+        ciphertext = bytes.fromhex(ciphertext_hex)
+        backend = default_backend()
+        cipher = Cipher(algorithms.AES(key_bytes), modes.CFB(iv_bytes), backend=backend)
+        decryptor = cipher.decryptor()
+        
+        # Deşifreleme
+        decrypted_padded_data = decryptor.update(ciphertext) + decryptor.finalize()
+
+        # Dolguyu Kaldır (Unpadding)
+        unpadder = padding.PKCS7(algorithms.AES.block_size).unpadder()
+        unpadded_data = unpadder.update(decrypted_padded_data) + unpadder.finalize()
+        
+        return unpadded_data.decode('utf-8')

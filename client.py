@@ -4,6 +4,7 @@ import socket
 import json
 from datetime import datetime
 from crypto_functions import CryptoFunctions
+import os
 
 class ClientApp:
     def __init__(self):
@@ -16,6 +17,9 @@ class ClientApp:
         self.client_socket = None
         self.is_connected = False
         
+        self.AES_KEY = os.urandom(16)
+        self.AES_IV = os.urandom(16)
+
         self.create_ui()
         self.connect_to_server()
         
@@ -45,7 +49,7 @@ class ClientApp:
                                        font=("Arial", 11), width=50, state="readonly")
         cipher_combo['values'] = ("Pigpen Cipher (Anahtarsız)", "Polybius Cipher (Anahtarsız)", "Route Cipher (Spiral-Saat Yönü)", "Columnar Transposition (Anahtar Kelime)", "Caesar Cipher (Kaydırma)", 
                                      "Substitution Cipher", "Vigenere Cipher", "Playfair Cipher", 
-                                     "Rail Fence Cipher (Ray Sayısı)","Hill Cipher", "Hash (MD5)")
+                                     "Rail Fence Cipher (Ray Sayısı)","Hill Cipher", "Hash (MD5)","AES-128 (Kütüphaneli)")
         cipher_combo.current(0)
         cipher_combo.pack(pady=5)
         
@@ -100,6 +104,10 @@ class ClientApp:
         if "Hash" in selected_cipher or "Polybius" in selected_cipher or "Pigpen" in selected_cipher:
             self.key_entry.insert(0, "Anahtar gerekmez.")
             self.key_entry.config(state=tk.DISABLED, fg="#888")
+        elif "AES-128" in selected_cipher:
+            aes_key_hex = self.AES_KEY.hex()
+            self.key_entry.insert(0, f"AES Anahtarı (16B): {aes_key_hex}")
+            self.key_entry.config(state=tk.DISABLED, fg="#005a8d")
         elif "Hill Cipher" in selected_cipher:
             self.key_entry.insert(0, "9,4,5,7 (2x2 Matris Elemanları: a,b,c,d - Sadece 2x2 desteklenir)")
         elif "Route Cipher" in selected_cipher:
@@ -152,7 +160,11 @@ class ClientApp:
             key = ""
         
         try:
-            if "Pigpen" in cipher:
+            if "AES-128" in cipher:
+                encrypted = self.crypto.aes_encrypt_lib(msg, self.AES_KEY, self.AES_IV)
+            elif "Hill Cipher" in cipher:
+                encrypted = self.crypto.hill_encrypt(msg, key)
+            elif "Pigpen" in cipher:
                 encrypted = self.crypto.pigpen_encrypt(msg)
             elif "Hill Cipher" in cipher:
                 encrypted = self.crypto.hill_encrypt(msg, key)
@@ -203,12 +215,18 @@ class ClientApp:
         
         try:
             effective_key = ""
-            if "Hash" not in cipher and "Polybius" not in cipher and "Pigpen" not in cipher:
+            effective_iv = ""
+            if "AES-128" in cipher:
+                # AES için anahtar ve IV'yi hex olarak gönder
+                effective_key = self.AES_KEY.hex()
+                effective_iv = self.AES_IV.hex()
+            elif "Hash" not in cipher and "Polybius" not in cipher and "Pigpen" not in cipher:
                 effective_key = key
-            
+
             request = json.dumps({
                 'cipher': cipher,
                 'key': effective_key, 
+                'iv': effective_iv,
                 'message': encrypted_msg
             })
             

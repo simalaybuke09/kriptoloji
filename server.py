@@ -107,7 +107,9 @@ class ServerApp:
                 data = self.client_socket.recv(4096).decode('utf-8')
                 if not data:
                     break
-                
+                if not data.strip(): 
+                    continue # Döngünün başına dön
+
                 request = json.loads(data)
                 cipher = request.get('cipher')
                 key = request.get('key')
@@ -118,15 +120,14 @@ class ServerApp:
                 self.received_text.insert(tk.END, f"{message}\n")
                 self.received_text.see(tk.END)
                 
-                decrypted = self.decrypt_message(message, cipher, key,iv)
+                decrypted = self.decrypt_message(message, cipher, key, iv)
                 
                 self.log(f"✅ Deşifreleme tamamlandı")
                 self.decrypted_text.insert(tk.END, f"{decrypted}\n")
                 self.decrypted_text.see(tk.END)
                 # HATA ÖNLEME: Gelen veri boş veya anlamsız ise atla
 
-                if not data.strip(): 
-                    continue # Döngünün başına dön
+                
                 response = json.dumps({
                     'status': 'success',
                     'decrypted': decrypted
@@ -141,8 +142,12 @@ class ServerApp:
             self.client_socket.close()
             self.status_label.config(text="⏳ İstemci bekleniyor...", fg="orange")
     
-    def decrypt_message(self, message, cipher, key,iv=""):
+    def decrypt_message(self, message, cipher, key, iv=""):
         try:
+            if "DES" in cipher:
+                key_bytes = bytes.fromhex(key)
+                iv_bytes = bytes.fromhex(iv)
+                return self.crypto.des_decrypt_lib(message, key_bytes, iv_bytes)
             if "AES-128" in cipher:
                 key_bytes = bytes.fromhex(key)
                 iv_bytes = bytes.fromhex(iv)

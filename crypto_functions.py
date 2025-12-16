@@ -622,3 +622,51 @@ class CryptoFunctions:
         unpadded_data = unpadder.update(decrypted_padded_data) + unpadder.finalize()
         
         return unpadded_data.decode('utf-8')
+    
+    # --- YENİ EKLENEN: KÜTÜPHANELİ DES ---
+    
+    def des_encrypt_lib(self, plaintext, key_bytes, iv_bytes):
+        """DES ile şifreleme (Kütüphaneli). CFB modu ve PKCS7 dolgusu kullanır."""
+        
+        # DES için anahtar kontrolü (8 byte / 64 bit)
+        if len(key_bytes) != 8:
+            raise ValueError("DES Anahtarı 8 byte (64 bit) uzunluğunda olmalıdır.")
+        # DES için IV kontrolü (8 byte / 64 bit)
+        if len(iv_bytes) != 8:
+            raise ValueError("DES IV (Başlatma Vektörü) 8 byte uzunluğunda olmalıdır.")
+            
+        backend = default_backend()
+        cipher = Cipher(algorithms.TripleDES(key_bytes), modes.CFB(iv_bytes), backend=backend)
+        encryptor = cipher.encryptor()
+
+        # Dolgu (Padding) Uygula (DES blok boyutu 64 bittir = 8 byte)
+        padder = padding.PKCS7(algorithms.TripleDES.block_size).padder()
+        padded_data = padder.update(plaintext.encode('utf-8')) + padder.finalize()
+        
+        # Şifreleme
+        ciphertext = encryptor.update(padded_data) + encryptor.finalize()
+        
+        # Şifreli veriyi kolay transfer için hex dizesine dönüştür
+        return ciphertext.hex()
+
+    def des_decrypt_lib(self, ciphertext_hex, key_bytes, iv_bytes):
+        """DES ile deşifreleme (Kütüphaneli)."""
+
+        if len(key_bytes) != 8:
+            raise ValueError("DES Anahtarı 8 byte (64 bit) uzunluğunda olmalıdır.")
+        if len(iv_bytes) != 8:
+            raise ValueError("DES IV (Başlatma Vektörü) 8 byte uzunluğunda olmalıdır.")
+            
+        ciphertext = bytes.fromhex(ciphertext_hex)
+        backend = default_backend()
+        cipher = Cipher(algorithms.TripleDES(key_bytes), modes.CFB(iv_bytes), backend=backend)
+        decryptor = cipher.decryptor()
+        
+        # Deşifreleme
+        decrypted_padded_data = decryptor.update(ciphertext) + decryptor.finalize()
+
+        # Dolguyu Kaldır (Unpadding)
+        unpadder = padding.PKCS7(algorithms.TripleDES.block_size).unpadder()
+        unpadded_data = unpadder.update(decrypted_padded_data) + unpadder.finalize()
+        
+        return unpadded_data.decode('utf-8')

@@ -20,6 +20,9 @@ class ClientApp:
         self.AES_KEY = os.urandom(16)
         self.AES_IV = os.urandom(16)
 
+        self.DES_KEY = os.urandom(8)
+        self.DES_IV = os.urandom(8)
+
         self.create_ui()
         self.connect_to_server()
         
@@ -49,7 +52,7 @@ class ClientApp:
                                        font=("Arial", 11), width=50, state="readonly")
         cipher_combo['values'] = ("Pigpen Cipher (Anahtarsız)", "Polybius Cipher (Anahtarsız)", "Route Cipher (Spiral-Saat Yönü)", "Columnar Transposition (Anahtar Kelime)", "Caesar Cipher (Kaydırma)", 
                                      "Substitution Cipher", "Vigenere Cipher", "Playfair Cipher", 
-                                     "Rail Fence Cipher (Ray Sayısı)","Hill Cipher", "Hash (MD5)","AES-128 (Kütüphaneli)")
+                                     "Rail Fence Cipher (Ray Sayısı)","Hill Cipher", "Hash (MD5)","AES-128 (Kütüphaneli)","DES (Kütüphaneli)")
         cipher_combo.current(0)
         cipher_combo.pack(pady=5)
         
@@ -108,6 +111,10 @@ class ClientApp:
             aes_key_hex = self.AES_KEY.hex()
             self.key_entry.insert(0, f"AES Anahtarı (16B): {aes_key_hex}")
             self.key_entry.config(state=tk.DISABLED, fg="#005a8d")
+        elif "DES" in selected_cipher:
+            des_key_hex = self.DES_KEY.hex()
+            self.key_entry.insert(0, f"DES Anahtarı (8B): {des_key_hex}")
+            self.key_entry.config(state=tk.DISABLED, fg="#005a8d")
         elif "Hill Cipher" in selected_cipher:
             self.key_entry.insert(0, "9,4,5,7 (2x2 Matris Elemanları: a,b,c,d - Sadece 2x2 desteklenir)")
         elif "Route Cipher" in selected_cipher:
@@ -160,7 +167,9 @@ class ClientApp:
             key = ""
         
         try:
-            if "AES-128" in cipher:
+            if "DES" in cipher:
+                encrypted = self.crypto.des_encrypt_lib(msg, self.DES_KEY, self.DES_IV)
+            elif "AES-128" in cipher:
                 encrypted = self.crypto.aes_encrypt_lib(msg, self.AES_KEY, self.AES_IV)
             elif "Hill Cipher" in cipher:
                 encrypted = self.crypto.hill_encrypt(msg, key)
@@ -209,14 +218,17 @@ class ClientApp:
         if not encrypted_msg:
             messagebox.showerror("Hata", "Lütfen önce mesajı şifreleyin!")
             return
-        
+    
         key = self.key_entry.get().strip()
         cipher = self.cipher_var.get()
         
         try:
             effective_key = ""
             effective_iv = ""
-            if "AES-128" in cipher:
+            if "DES" in cipher:
+                effective_key = self.DES_KEY.hex()
+                effective_iv = self.DES_IV.hex()
+            elif "AES-128" in cipher:
                 # AES için anahtar ve IV'yi hex olarak gönder
                 effective_key = self.AES_KEY.hex()
                 effective_iv = self.AES_IV.hex()

@@ -144,6 +144,9 @@ class ServerApp:
     
     def decrypt_message(self, message, cipher, key, iv=""):
         try:
+            if "DES (Manuel/Basit)" in cipher:
+                key_bytes = bytes.fromhex(key)
+                return self.crypto.des_decrypt_manual(message, key_bytes)
             if "AES (Manuel/Basit)" in cipher:
                 # Deşifreleme, manuelde desteklenmez (uyarı verir)
                 key_bytes = bytes.fromhex(key)

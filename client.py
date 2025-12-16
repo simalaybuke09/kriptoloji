@@ -52,7 +52,7 @@ class ClientApp:
                                        font=("Arial", 11), width=50, state="readonly")
         cipher_combo['values'] = ("Pigpen Cipher (Anahtarsız)", "Polybius Cipher (Anahtarsız)", "Route Cipher (Spiral-Saat Yönü)", "Columnar Transposition (Anahtar Kelime)", "Caesar Cipher (Kaydırma)", 
                                      "Substitution Cipher", "Vigenere Cipher", "Playfair Cipher", 
-                                     "Rail Fence Cipher (Ray Sayısı)","Hill Cipher", "Hash (MD5)","AES-128 (Kütüphaneli)","DES (Kütüphaneli)")
+                                     "Rail Fence Cipher (Ray Sayısı)","Hill Cipher", "Hash (MD5)","AES-128 (Kütüphaneli)","DES (Kütüphaneli)","AES (Manuel/Basit)")
         cipher_combo.current(0)
         cipher_combo.pack(pady=5)
         
@@ -115,6 +115,10 @@ class ClientApp:
             des_key_hex = self.DES_KEY.hex()
             self.key_entry.insert(0, f"DES Anahtarı (8B): {des_key_hex}")
             self.key_entry.config(state=tk.DISABLED, fg="#005a8d")
+        elif "AES (Manuel/Basit)" in selected_cipher:
+            aes_key_hex = self.AES_KEY.hex()
+            self.key_entry.insert(0, f"AES Anahtarı (16B): {aes_key_hex} (Manuel)")
+            self.key_entry.config(state=tk.DISABLED, fg="#005a8d")
         elif "Hill Cipher" in selected_cipher:
             self.key_entry.insert(0, "9,4,5,7 (2x2 Matris Elemanları: a,b,c,d - Sadece 2x2 desteklenir)")
         elif "Route Cipher" in selected_cipher:
@@ -167,7 +171,10 @@ class ClientApp:
             key = ""
         
         try:
-            if "DES" in cipher:
+            if "AES (Manuel/Basit)" in cipher:
+                # Manuel AES, sadece key_bytes kullanır
+                encrypted = self.crypto.aes_encrypt_manual(msg, self.AES_KEY)
+            elif "DES" in cipher:
                 encrypted = self.crypto.des_encrypt_lib(msg, self.DES_KEY, self.DES_IV)
             elif "AES-128" in cipher:
                 encrypted = self.crypto.aes_encrypt_lib(msg, self.AES_KEY, self.AES_IV)
@@ -225,7 +232,12 @@ class ClientApp:
         try:
             effective_key = ""
             effective_iv = ""
-            if "DES" in cipher:
+
+            if "AES (Manuel/Basit)" in cipher:
+                effective_key = self.AES_KEY.hex()
+                effective_iv = "" # Manuelde IV kullanmıyoruz (basitleştirilmiş versiyon)
+
+            elif "DES" in cipher:
                 effective_key = self.DES_KEY.hex()
                 effective_iv = self.DES_IV.hex()
             elif "AES-128" in cipher:

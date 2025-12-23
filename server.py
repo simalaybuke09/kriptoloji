@@ -5,6 +5,10 @@ import threading
 import json
 from datetime import datetime
 from crypto_functions import CryptoFunctions
+from aes_cipher import AESCipher
+from des_cipher import DESCipher
+from rsa_cipher import RSACipher
+import os
 
 class ServerApp:
     def __init__(self):
@@ -14,6 +18,9 @@ class ServerApp:
         self.window.configure(bg="#f0f0f0")
         
         self.crypto = CryptoFunctions()
+        self.aes = AESCipher()
+        self.des = DESCipher()
+        self.rsa = RSACipher()
         self.server_socket = None
         self.client_socket = None
         self.is_running = False
@@ -21,6 +28,12 @@ class ServerApp:
         self.create_ui()
         self.start_server()
         
+        # RSA Anahtarlarını Üret ve Public Key'i Kaydet (Key Server için)
+        self.log("🔑 RSA Anahtarları üretiliyor...")
+        self.private_key, self.public_key = self.rsa.generate_keys()
+        self.rsa.save_public_key(self.public_key, "public_key.pem")
+        self.log("✅ Public Key 'public_key.pem' olarak kaydedildi.")
+
     def create_ui(self):
         header = tk.Frame(self.window, bg="#4CAF50", height=80)
         header.pack(fill=tk.X)
@@ -75,6 +88,7 @@ class ServerApp:
     def start_server(self):
         try:
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.server_socket.bind(('localhost', 5555))
             self.server_socket.listen(1)
             self.is_running = True
@@ -146,19 +160,26 @@ class ServerApp:
         try:
             if "DES (Manuel/Basit)" in cipher:
                 key_bytes = bytes.fromhex(key)
-                return self.crypto.des_decrypt_manual(message, key_bytes)
+                return self.des.decrypt_manual(message, key_bytes)
             if "AES (Manuel/Basit)" in cipher:
                 # Deşifreleme, manuelde desteklenmez (uyarı verir)
                 key_bytes = bytes.fromhex(key)
-                return self.crypto.aes_decrypt_manual(message, key_bytes)
+                return self.aes.decrypt_manual(message, key_bytes)
             if "DES" in cipher:
                 key_bytes = bytes.fromhex(key)
                 iv_bytes = bytes.fromhex(iv)
-                return self.crypto.des_decrypt_lib(message, key_bytes, iv_bytes)
+                return self.des.decrypt_lib(message, key_bytes, iv_bytes)
+            if "AES-128 (RSA ile Güvenli)" in cipher:
+                # 1. RSA ile şifrelenmiş AES anahtarını çöz
+                encrypted_aes_key = bytes.fromhex(key)
+                aes_key = self.rsa.decrypt_key(encrypted_aes_key, self.private_key)
+                # 2. Çözülen AES anahtarı ile mesajı deşifre et
+                iv_bytes = bytes.fromhex(iv)
+                return self.aes.decrypt_lib(message, aes_key, iv_bytes)
             if "AES-128" in cipher:
                 key_bytes = bytes.fromhex(key)
                 iv_bytes = bytes.fromhex(iv)
-                return self.crypto.aes_decrypt_lib(message, key_bytes, iv_bytes)
+                return self.aes.decrypt_lib(message, key_bytes, iv_bytes)
             elif "Hill Cipher" in cipher:
                 return self.crypto.hill_decrypt(message, key)
             if "Pigpen" in cipher:
@@ -212,6 +233,9 @@ class ServerApp:
     
     def on_closing(self):
         self.stop_server()
+        # Sunucu kapanınca Public Key dosyasını sil (Güvenlik ve Test için)
+        if os.path.exists("public_key.pem"):
+            os.remove("public_key.pem")
         self.window.destroy()
 
 if __name__ == "__main__":

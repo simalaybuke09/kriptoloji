@@ -4,6 +4,9 @@ import socket
 import json
 from datetime import datetime
 from crypto_functions import CryptoFunctions
+from aes_cipher import AESCipher
+from des_cipher import DESCipher
+from rsa_cipher import RSACipher
 import os
 
 class ClientApp:
@@ -14,6 +17,9 @@ class ClientApp:
         self.window.configure(bg="#f0f0f0")
         
         self.crypto = CryptoFunctions()
+        self.aes = AESCipher()
+        self.des = DESCipher()
+        self.rsa = RSACipher()
         self.client_socket = None
         self.is_connected = False
         
@@ -52,7 +58,7 @@ class ClientApp:
                                        font=("Arial", 11), width=50, state="readonly")
         cipher_combo['values'] = ("Pigpen Cipher (Anahtarsız)", "Polybius Cipher (Anahtarsız)", "Route Cipher (Spiral-Saat Yönü)", "Columnar Transposition (Anahtar Kelime)", "Caesar Cipher (Kaydırma)", 
                                      "Substitution Cipher", "Vigenere Cipher", "Playfair Cipher", 
-                                     "Rail Fence Cipher (Ray Sayısı)","Hill Cipher", "Hash (MD5)","AES-128 (Kütüphaneli)","DES (Kütüphaneli)","AES (Manuel/Basit)","DES (Manual/Basit)")
+                                     "Rail Fence Cipher (Ray Sayısı)","Hill Cipher", "Hash (MD5)","AES-128 (Kütüphaneli)","AES-128 (RSA ile Güvenli)","DES (Kütüphaneli)","AES (Manuel/Basit)","DES (Manual/Basit)")
         cipher_combo.current(0)
         cipher_combo.pack(pady=5)
         
@@ -107,6 +113,16 @@ class ClientApp:
         if "Hash" in selected_cipher or "Polybius" in selected_cipher or "Pigpen" in selected_cipher:
             self.key_entry.insert(0, "Anahtar gerekmez.")
             self.key_entry.config(state=tk.DISABLED, fg="#888")
+        elif "AES-128 (RSA ile Güvenli)" in selected_cipher:
+            try:
+                # Key Server kontrolü yap (Bağlantı testi)
+                self.get_public_key_from_server()
+                aes_key_hex = self.AES_KEY.hex()
+                self.key_entry.insert(0, f"AES Key (RSA ile şifrelenip yollanacak): {aes_key_hex}")
+                self.key_entry.config(state=tk.DISABLED, fg="#9C27B0")
+            except Exception:
+                self.key_entry.insert(0, "HATA: Key Server (Port 5556) Kapalı!")
+                self.key_entry.config(state=tk.DISABLED, fg="red")
         elif "AES-128" in selected_cipher:
             aes_key_hex = self.AES_KEY.hex()
             self.key_entry.insert(0, f"AES Anahtarı (16B): {aes_key_hex}")
@@ -176,14 +192,22 @@ class ClientApp:
         
         try:
             if "DES (Manuel/Basit)" in cipher:
-                encrypted = self.crypto.des_encrypt_manual(msg, self.DES_KEY)
+                encrypted = self.des.encrypt_manual(msg, self.DES_KEY)
             elif "AES (Manuel/Basit)" in cipher:
                 # Manuel AES, sadece key_bytes kullanır
-                encrypted = self.crypto.aes_encrypt_manual(msg, self.AES_KEY)
+                encrypted = self.aes.encrypt_manual(msg, self.AES_KEY)
             elif "DES" in cipher:
-                encrypted = self.crypto.des_encrypt_lib(msg, self.DES_KEY, self.DES_IV)
+                encrypted = self.des.encrypt_lib(msg, self.DES_KEY, self.DES_IV)
+            elif "AES-128 (RSA ile Güvenli)" in cipher:
+                # Key Server kontrolü: Sunucu kapalıysa şifreleme yapma (Güvenlik gereği)
+                try:
+                    self.get_public_key_from_server()
+                except Exception:
+                    messagebox.showerror("Hata", "Key Server (Port 5556) Kapalı!\nBu yöntem için Key Server aktif olmalıdır.")
+                    return
+                encrypted = self.aes.encrypt_lib(msg, self.AES_KEY, self.AES_IV)
             elif "AES-128" in cipher:
-                encrypted = self.crypto.aes_encrypt_lib(msg, self.AES_KEY, self.AES_IV)
+                encrypted = self.aes.encrypt_lib(msg, self.AES_KEY, self.AES_IV)
             elif "Hill Cipher" in cipher:
                 encrypted = self.crypto.hill_encrypt(msg, key)
             elif "Pigpen" in cipher:
@@ -222,6 +246,18 @@ class ClientApp:
         except Exception as e:
             messagebox.showerror("Hata", f"Şifreleme hatası: {str(e)}")
     
+    def get_public_key_from_server(self):
+        """Key Server'dan (Port 5556) Public Key'i çeker"""
+        try:
+            key_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            key_socket.connect(('localhost', 5556))
+            self.log("🔑 Key Server'a (Port 5556) bağlanıldı, Public Key isteniyor...")
+            pub_key_pem = key_socket.recv(4096)
+            key_socket.close()
+            return pub_key_pem
+        except Exception as e:
+            raise Exception(f"Key Server'a ulaşılamadı: {e}")
+
     def send_to_server(self):
         if not self.is_connected:
             messagebox.showerror("Hata", "Sunucuya bağlı değilsiniz!")
@@ -250,6 +286,24 @@ class ClientApp:
             elif "DES" in cipher:
                 effective_key = self.DES_KEY.hex()
                 effective_iv = self.DES_IV.hex()
+            elif "AES-128 (RSA ile Güvenli)" in cipher:
+                # 1. Key Server'dan Public Key al
+                pub_key_pem = self.get_public_key_from_server()
+                
+                # Gelen verinin gerçekten bir anahtar olup olmadığını kontrol et
+                if not pub_key_pem.startswith(b'-----BEGIN PUBLIC KEY'):
+                    error_msg = pub_key_pem.decode('utf-8', errors='ignore')
+                    self.log(f"❌ Key Server Hatası: {error_msg}")
+                    messagebox.showerror("Key Server Hatası", f"Anahtar alınamadı:\n{error_msg}")
+                    return
+
+                self.log("✅ Public Key alındı.")
+                
+                # 2. AES Anahtarını RSA ile şifrele
+                pub_key = self.rsa.load_public_key_from_bytes(pub_key_pem)
+                encrypted_aes_key = self.rsa.encrypt_key(self.AES_KEY, pub_key)
+                effective_key = encrypted_aes_key.hex() # Şifreli anahtarı hex olarak gönder
+                effective_iv = self.AES_IV.hex()
             elif "AES-128" in cipher:
                 # AES için anahtar ve IV'yi hex olarak gönder
                 effective_key = self.AES_KEY.hex()

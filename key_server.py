@@ -67,18 +67,24 @@ class KeyServerApp:
     def handle_client(self, client_sock, addr):
         try:
             self.log(f"🔗 İstek geldi: {addr}")
-            # Public Key dosyasını oku (Server.py tarafından oluşturulmuş olmalı)
-            if os.path.exists("public_key.pem"):
-                with open("public_key.pem", "rb") as f:
+            
+            # İstemciden anahtar türünü al (RSA veya ECC)
+            request = client_sock.recv(1024).decode('utf-8').strip()
+            filename = "public_key.pem" # Varsayılan RSA
+            if request == "ECC":
+                filename = "public_key_ecc.pem"
+            
+            if os.path.exists(filename):
+                with open(filename, "rb") as f:
                     pub_key_data = f.read()
                 client_sock.send(pub_key_data)
                 self.request_count += 1
                 self.status_label.config(text=f"✅ Aktif - {self.request_count} Kez Anahtar Gönderildi")
-                self.log(f"📤 (#{self.request_count}) Public Key gönderildi -> {addr}")
+                self.log(f"📤 (#{self.request_count}) {request} Public Key gönderildi -> {addr}")
             else:
-                msg = "❌ Public Key henüz oluşturulmadı (App Server'ı başlatın)."
+                msg = f"❌ {request} Public Key henüz oluşturulmadı (App Server'ı başlatın)."
                 client_sock.send(msg.encode('utf-8'))
-                self.log("⚠️ Public Key dosyası bulunamadı!")
+                self.log(f"⚠️ {filename} dosyası bulunamadı!")
         except Exception as e:
             self.log(f"❌ İletişim hatası: {e}")
         finally:

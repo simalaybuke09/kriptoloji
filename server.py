@@ -8,6 +8,7 @@ from crypto_functions import CryptoFunctions
 from aes_cipher import AESCipher
 from des_cipher import DESCipher
 from rsa_cipher import RSACipher
+from ecc_cipher import ECCCipher
 import os
 
 class ServerApp:
@@ -21,6 +22,7 @@ class ServerApp:
         self.aes = AESCipher()
         self.des = DESCipher()
         self.rsa = RSACipher()
+        self.ecc = ECCCipher()
         self.server_socket = None
         self.client_socket = None
         self.is_running = False
@@ -33,6 +35,12 @@ class ServerApp:
         self.private_key, self.public_key = self.rsa.generate_keys()
         self.rsa.save_public_key(self.public_key, "public_key.pem")
         self.log("✅ Public Key 'public_key.pem' olarak kaydedildi.")
+
+        # ECC Anahtarlarını Üret ve Public Key'i Kaydet
+        self.log("🔑 ECC Anahtarları üretiliyor...")
+        self.ecc_private_key, self.ecc_public_key = self.ecc.generate_keys()
+        self.ecc.save_public_key(self.ecc_public_key, "public_key_ecc.pem")
+        self.log("✅ ECC Public Key 'public_key_ecc.pem' olarak kaydedildi.")
 
     def create_ui(self):
         header = tk.Frame(self.window, bg="#4CAF50", height=80)
@@ -144,7 +152,6 @@ class ServerApp:
                 
                 response = json.dumps({
                     'status': 'success',
-                    'decrypted': decrypted
                 })
                 self.client_socket.send(response.encode('utf-8'))
                 
@@ -173,6 +180,13 @@ class ServerApp:
                 # 1. RSA ile şifrelenmiş AES anahtarını çöz
                 encrypted_aes_key = bytes.fromhex(key)
                 aes_key = self.rsa.decrypt_key(encrypted_aes_key, self.private_key)
+                # 2. Çözülen AES anahtarı ile mesajı deşifre et
+                iv_bytes = bytes.fromhex(iv)
+                return self.aes.decrypt_lib(message, aes_key, iv_bytes)
+            if "AES-128 (ECC ile Güvenli)" in cipher:
+                # 1. ECC ile şifrelenmiş AES anahtarını çöz
+                encrypted_aes_key = bytes.fromhex(key)
+                aes_key = self.ecc.decrypt_key(encrypted_aes_key, self.ecc_private_key)
                 # 2. Çözülen AES anahtarı ile mesajı deşifre et
                 iv_bytes = bytes.fromhex(iv)
                 return self.aes.decrypt_lib(message, aes_key, iv_bytes)
@@ -236,6 +250,8 @@ class ServerApp:
         # Sunucu kapanınca Public Key dosyasını sil (Güvenlik ve Test için)
         if os.path.exists("public_key.pem"):
             os.remove("public_key.pem")
+        if os.path.exists("public_key_ecc.pem"):
+            os.remove("public_key_ecc.pem")
         self.window.destroy()
 
 if __name__ == "__main__":

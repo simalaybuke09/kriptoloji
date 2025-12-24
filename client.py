@@ -7,6 +7,7 @@ from crypto_functions import CryptoFunctions
 from aes_cipher import AESCipher
 from des_cipher import DESCipher
 from rsa_cipher import RSACipher
+from ecc_cipher import ECCCipher
 import os
 
 class ClientApp:
@@ -20,6 +21,7 @@ class ClientApp:
         self.aes = AESCipher()
         self.des = DESCipher()
         self.rsa = RSACipher()
+        self.ecc = ECCCipher()
         self.client_socket = None
         self.is_connected = False
         
@@ -58,7 +60,7 @@ class ClientApp:
                                        font=("Arial", 11), width=50, state="readonly")
         cipher_combo['values'] = ("Pigpen Cipher (Anahtarsız)", "Polybius Cipher (Anahtarsız)", "Route Cipher (Spiral-Saat Yönü)", "Columnar Transposition (Anahtar Kelime)", "Caesar Cipher (Kaydırma)", 
                                      "Substitution Cipher", "Vigenere Cipher", "Playfair Cipher", 
-                                     "Rail Fence Cipher (Ray Sayısı)","Hill Cipher", "Hash (MD5)","AES-128 (Kütüphaneli)","AES-128 (RSA ile Güvenli)","DES (Kütüphaneli)","AES (Manuel/Basit)","DES (Manual/Basit)")
+                                     "Rail Fence Cipher (Ray Sayısı)","Hill Cipher", "Hash (MD5)","AES-128 (Kütüphaneli)","AES-128 (RSA ile Güvenli)","AES-128 (ECC ile Güvenli)","DES (Kütüphaneli)","AES (Manuel/Basit)","DES (Manual/Basit)")
         cipher_combo.current(0)
         cipher_combo.pack(pady=5)
         
@@ -119,6 +121,16 @@ class ClientApp:
                 self.get_public_key_from_server()
                 aes_key_hex = self.AES_KEY.hex()
                 self.key_entry.insert(0, f"AES Key (RSA ile şifrelenip yollanacak): {aes_key_hex}")
+                self.key_entry.config(state=tk.DISABLED, fg="#9C27B0")
+            except Exception:
+                self.key_entry.insert(0, "HATA: Key Server (Port 5556) Kapalı!")
+                self.key_entry.config(state=tk.DISABLED, fg="red")
+        elif "AES-128 (ECC ile Güvenli)" in selected_cipher:
+            try:
+                # Key Server kontrolü yap (Bağlantı testi)
+                self.get_public_key_from_server("ECC")
+                aes_key_hex = self.AES_KEY.hex()
+                self.key_entry.insert(0, f"AES Key (ECC ile şifrelenip yollanacak): {aes_key_hex}")
                 self.key_entry.config(state=tk.DISABLED, fg="#9C27B0")
             except Exception:
                 self.key_entry.insert(0, "HATA: Key Server (Port 5556) Kapalı!")
@@ -206,6 +218,14 @@ class ClientApp:
                     messagebox.showerror("Hata", "Key Server (Port 5556) Kapalı!\nBu yöntem için Key Server aktif olmalıdır.")
                     return
                 encrypted = self.aes.encrypt_lib(msg, self.AES_KEY, self.AES_IV)
+            elif "AES-128 (ECC ile Güvenli)" in cipher:
+                # Key Server kontrolü
+                try:
+                    self.get_public_key_from_server("ECC")
+                except Exception:
+                    messagebox.showerror("Hata", "Key Server (Port 5556) Kapalı!\nBu yöntem için Key Server aktif olmalıdır.")
+                    return
+                encrypted = self.aes.encrypt_lib(msg, self.AES_KEY, self.AES_IV)
             elif "AES-128" in cipher:
                 encrypted = self.aes.encrypt_lib(msg, self.AES_KEY, self.AES_IV)
             elif "Hill Cipher" in cipher:
@@ -246,12 +266,13 @@ class ClientApp:
         except Exception as e:
             messagebox.showerror("Hata", f"Şifreleme hatası: {str(e)}")
     
-    def get_public_key_from_server(self):
+    def get_public_key_from_server(self, key_type="RSA"):
         """Key Server'dan (Port 5556) Public Key'i çeker"""
         try:
             key_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             key_socket.connect(('localhost', 5556))
-            self.log("🔑 Key Server'a (Port 5556) bağlanıldı, Public Key isteniyor...")
+            self.log(f"🔑 Key Server'a (Port 5556) bağlanıldı, {key_type} Public Key isteniyor...")
+            key_socket.send(key_type.encode())
             pub_key_pem = key_socket.recv(4096)
             key_socket.close()
             return pub_key_pem
@@ -304,6 +325,20 @@ class ClientApp:
                 encrypted_aes_key = self.rsa.encrypt_key(self.AES_KEY, pub_key)
                 effective_key = encrypted_aes_key.hex() # Şifreli anahtarı hex olarak gönder
                 effective_iv = self.AES_IV.hex()
+            elif "AES-128 (ECC ile Güvenli)" in cipher:
+                # 1. Key Server'dan ECC Public Key al
+                pub_key_pem = self.get_public_key_from_server("ECC")
+                
+                if not pub_key_pem.startswith(b'-----BEGIN PUBLIC KEY'):
+                    error_msg = pub_key_pem.decode('utf-8', errors='ignore')
+                    messagebox.showerror("Key Server Hatası", f"Anahtar alınamadı:\n{error_msg}")
+                    return
+
+                # 2. AES Anahtarını ECC ile şifrele
+                pub_key = self.ecc.load_public_key_from_bytes(pub_key_pem)
+                encrypted_aes_key = self.ecc.encrypt_key(self.AES_KEY, pub_key)
+                effective_key = encrypted_aes_key.hex()
+                effective_iv = self.AES_IV.hex()
             elif "AES-128" in cipher:
                 # AES için anahtar ve IV'yi hex olarak gönder
                 effective_key = self.AES_KEY.hex()
@@ -325,10 +360,9 @@ class ClientApp:
             data = json.loads(response)
             
             if data.get('status') == 'success':
-                decrypted = data.get('decrypted')
                 self.response_text.delete("1.0", tk.END)
-                self.response_text.insert("1.0", decrypted)
-                self.log(f"✅ Sunucudan deşifrelenmiş mesaj alındı")
+                self.response_text.insert("1.0", "✅ Mesaj sunucuya başarıyla iletildi ve deşifre edildi.")
+                self.log(f"✅ Sunucu onayı alındı")
             else:
                 messagebox.showerror("Hata", f"Sunucu tarafında bir hata oluştu: {data.get('decrypted', 'Bilinmeyen hata')}")
                 

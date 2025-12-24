@@ -46,7 +46,7 @@ class CryptoFunctions:
 
     def mod_inverse(self, a, m):
         """Modüler Ters (a^-1 mod m) hesaplar"""
-        # Şart: gcd(a, m) ≡ 1 ise, a^-1 mod m vardır. [cite: 415]
+        # Şart: gcd(a, m) ≡ 1 ise, a^-1 mod m vardır. 
         g, x, y = self._egcd(a, m)
         if g != 1:
             raise ValueError(f"Hill Anahtarı İçin Hata: Determinant ({a}) ile 26 aralarında asal değil. Geçersiz anahtar!")

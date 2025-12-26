@@ -4,11 +4,23 @@ import socket
 import threading
 import json
 from datetime import datetime
-from crypto_functions import CryptoFunctions
-from aes_cipher import AESCipher
-from des_cipher import DESCipher
-from rsa_cipher import RSACipher
-from ecc_cipher import ECCCipher
+from methods.aes_manual import AESManual
+from methods.aes_lib import AESLib
+from methods.des_manual import DESManual
+from methods.des_lib import DESLib
+from methods.rsa_cipher import RSACipher
+from methods.ecc_cipher import ECCCipher
+from methods.hill_cipher import HillCipher
+from methods.pigpen_cipher import PigpenCipher
+from methods.polybius_cipher import PolybiusCipher
+from methods.columnar_cipher import ColumnarCipher
+from methods.route_cipher import RouteCipher
+from methods.caesar_cipher import CaesarCipher
+from methods.substitution_cipher import SubstitutionCipher
+from methods.vigenere_cipher import VigenereCipher
+from methods.playfair_cipher import PlayfairCipher
+from methods.rail_fence_cipher import RailFenceCipher
+from methods.hash_cipher import HashCipher
 import os
 
 class ServerApp:
@@ -18,11 +30,24 @@ class ServerApp:
         self.window.geometry("800x700")
         self.window.configure(bg="#f0f0f0")
         
-        self.crypto = CryptoFunctions()
-        self.aes = AESCipher()
-        self.des = DESCipher()
+        self.aes_man = AESManual()
+        self.aes_lib = AESLib()
+        self.des_man = DESManual()
+        self.des_lib = DESLib()
         self.rsa = RSACipher()
         self.ecc = ECCCipher()
+        self.hill = HillCipher()
+        self.pigpen = PigpenCipher()
+        self.polybius = PolybiusCipher()
+        self.columnar = ColumnarCipher()
+        self.route = RouteCipher()
+        self.caesar = CaesarCipher()
+        self.substitution = SubstitutionCipher()
+        self.vigenere = VigenereCipher()
+        self.playfair = PlayfairCipher()
+        self.rail_fence = RailFenceCipher()
+        self.hash = HashCipher()
+        
         self.server_socket = None
         self.client_socket = None
         self.is_running = False
@@ -167,53 +192,53 @@ class ServerApp:
         try:
             if "DES (Manuel/Basit)" in cipher:
                 key_bytes = bytes.fromhex(key)
-                return self.des.decrypt_manual(message, key_bytes)
+                return self.des_man.decrypt(message, key_bytes)
             if "AES (Manuel/Basit)" in cipher:
                 # Deşifreleme, manuelde desteklenmez (uyarı verir)
                 key_bytes = bytes.fromhex(key)
-                return self.aes.decrypt_manual(message, key_bytes)
+                return self.aes_man.decrypt(message, key_bytes)
             if "DES" in cipher:
                 key_bytes = bytes.fromhex(key)
                 iv_bytes = bytes.fromhex(iv)
-                return self.des.decrypt_lib(message, key_bytes, iv_bytes)
+                return self.des_lib.decrypt(message, key_bytes, iv_bytes)
             if "AES-128 (RSA ile Güvenli)" in cipher:
                 # 1. RSA ile şifrelenmiş AES anahtarını çöz
                 encrypted_aes_key = bytes.fromhex(key)
                 aes_key = self.rsa.decrypt_key(encrypted_aes_key, self.private_key)
                 # 2. Çözülen AES anahtarı ile mesajı deşifre et
                 iv_bytes = bytes.fromhex(iv)
-                return self.aes.decrypt_lib(message, aes_key, iv_bytes)
+                return self.aes_lib.decrypt(message, aes_key, iv_bytes)
             if "AES-128 (ECC ile Güvenli)" in cipher:
                 # 1. ECC ile şifrelenmiş AES anahtarını çöz
                 encrypted_aes_key = bytes.fromhex(key)
                 aes_key = self.ecc.decrypt_key(encrypted_aes_key, self.ecc_private_key)
                 # 2. Çözülen AES anahtarı ile mesajı deşifre et
                 iv_bytes = bytes.fromhex(iv)
-                return self.aes.decrypt_lib(message, aes_key, iv_bytes)
+                return self.aes_lib.decrypt(message, aes_key, iv_bytes)
             if "AES-128" in cipher:
                 key_bytes = bytes.fromhex(key)
                 iv_bytes = bytes.fromhex(iv)
-                return self.aes.decrypt_lib(message, key_bytes, iv_bytes)
+                return self.aes_lib.decrypt(message, key_bytes, iv_bytes)
             elif "Hill Cipher" in cipher:
-                return self.crypto.hill_decrypt(message, key)
+                return self.hill.decrypt(message, key)
             if "Pigpen" in cipher:
-                return self.crypto.pigpen_decrypt(message)
+                return self.pigpen.decrypt(message)
             elif "Polybius" in cipher:
-                return self.crypto.polybius_decrypt(message)
+                return self.polybius.decrypt(message)
             elif "Route Cipher" in cipher:
-                return self.crypto.route_decrypt(message, key)
+                return self.route.decrypt(message, key)
             elif "Columnar" in cipher:
-                return self.crypto.columnar_decrypt(message, key)
+                return self.columnar.decrypt(message, key)
             elif "Caesar" in cipher:
-                return self.crypto.caesar_decrypt(message, int(key))
+                return self.caesar.decrypt(message, int(key))
             elif "Substitution" in cipher:
-                return self.crypto.substitution_decrypt(message, key)
+                return self.substitution.decrypt(message, key)
             elif "Vigenere" in cipher:
-                return self.crypto.vigenere_decrypt(message, key)
+                return self.vigenere.decrypt(message, key)
             elif "Playfair" in cipher:
-                return self.crypto.playfair_decrypt(message, key)
+                return self.playfair.decrypt(message, key)
             elif "Rail Fence" in cipher:
-                return self.crypto.rail_fence_decrypt(message, key)
+                return self.rail_fence.decrypt(message, key)
             elif "Hash" in cipher:
                 return "⚠️ MD5 tek yönlüdür, deşifrelenemez!"
             else:

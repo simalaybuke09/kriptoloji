@@ -1,13 +1,25 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox, scrolledtext, filedialog
 import socket
 import json
 from datetime import datetime
-from crypto_functions import CryptoFunctions
-from aes_cipher import AESCipher
-from des_cipher import DESCipher
-from rsa_cipher import RSACipher
-from ecc_cipher import ECCCipher
+from methods.aes_manual import AESManual
+from methods.aes_lib import AESLib
+from methods.des_manual import DESManual
+from methods.des_lib import DESLib
+from methods.rsa_cipher import RSACipher
+from methods.ecc_cipher import ECCCipher
+from methods.hill_cipher import HillCipher
+from methods.pigpen_cipher import PigpenCipher
+from methods.polybius_cipher import PolybiusCipher
+from methods.columnar_cipher import ColumnarCipher
+from methods.route_cipher import RouteCipher
+from methods.caesar_cipher import CaesarCipher
+from methods.substitution_cipher import SubstitutionCipher
+from methods.vigenere_cipher import VigenereCipher
+from methods.playfair_cipher import PlayfairCipher
+from methods.rail_fence_cipher import RailFenceCipher
+from methods.hash_cipher import HashCipher
 import os
 
 class ClientApp:
@@ -17,13 +29,27 @@ class ClientApp:
         self.window.geometry("800x750")
         self.window.configure(bg="#f0f0f0")
         
-        self.crypto = CryptoFunctions()
-        self.aes = AESCipher()
-        self.des = DESCipher()
+        self.aes_man = AESManual()
+        self.aes_lib = AESLib()
+        self.des_man = DESManual()
+        self.des_lib = DESLib()
         self.rsa = RSACipher()
         self.ecc = ECCCipher()
+        self.hill = HillCipher()
+        self.pigpen = PigpenCipher()
+        self.polybius = PolybiusCipher()
+        self.columnar = ColumnarCipher()
+        self.route = RouteCipher()
+        self.caesar = CaesarCipher()
+        self.substitution = SubstitutionCipher()
+        self.vigenere = VigenereCipher()
+        self.playfair = PlayfairCipher()
+        self.rail_fence = RailFenceCipher()
+        self.hash = HashCipher()
+        
         self.client_socket = None
         self.is_connected = False
+        self.file_content = None
         
         self.AES_KEY = os.urandom(16)
         self.AES_IV = os.urandom(16)
@@ -75,6 +101,18 @@ class ClientApp:
         
         tk.Label(content, text="💬 Mesaj", 
                  font=("Arial", 11, "bold"), bg="white", fg="#555").pack(anchor=tk.W, pady=(10,5))
+        
+        tk.Button(content, text="📂 TXT Dosyası Yükle", command=self.load_txt_file,
+                  bg="#FF9800", fg="white", font=("Arial", 9, "bold"),
+                  padx=10, pady=2, cursor="hand2").pack(anchor=tk.W, pady=2)
+        
+        self.file_status_label = tk.Label(content, text="", font=("Arial", 9, "italic"), bg="white", fg="#4CAF50")
+        self.file_status_label.pack(anchor=tk.W)
+
+        tk.Button(content, text="🗑️ Girişleri Temizle", command=self.clear_inputs,
+                  bg="#9E9E9E", fg="white", font=("Arial", 9, "bold"),
+                  padx=10, pady=2, cursor="hand2").pack(anchor=tk.W, pady=2)
+
         self.msg_text = tk.Text(content, font=("Arial", 11), height=5, width=65, wrap=tk.WORD)
         self.msg_text.pack(pady=5)
         
@@ -152,7 +190,7 @@ class ClientApp:
             self.key_entry.insert(0, f"DES Anahtarı (8B): {des_key_hex} (Manuel)")
             self.key_entry.config(state=tk.DISABLED, fg="#005a8d")    
         elif "Hill Cipher" in selected_cipher:
-            self.key_entry.insert(0, "9,4,5,7 (2x2 Matris Elemanları: a,b,c,d - Sadece 2x2 desteklenir)")
+            self.key_entry.insert(0, "Örn: 9,4,5,7 (2x2), 3x3 veya 4x4 (16 sayı)")
         elif "Route Cipher" in selected_cipher:
             self.key_entry.insert(0, "5 (Matris Genişliği)")
         elif "Columnar" in selected_cipher:
@@ -170,6 +208,26 @@ class ClientApp:
         else:
             self.key_entry.insert(0, "") 
 
+    def load_txt_file(self):
+        filepath = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt")])
+        if not filepath:
+            return
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                self.file_content = f.read()
+            
+            filename = os.path.basename(filepath)
+            self.file_status_label.config(text=f"📄 Dosya Seçildi: {filename}")
+            self.log(f"📂 Dosya belleğe alındı: {filename}")
+        except Exception as e:
+            messagebox.showerror("Hata", f"Dosya okunamadı: {e}")
+
+    def clear_inputs(self):
+        self.msg_text.delete("1.0", tk.END)
+        self.file_content = None
+        self.file_status_label.config(text="")
+        self.encrypted_text.delete("1.0", tk.END)
+        self.log("🧹 Girişler temizlendi.")
         
     def connect_to_server(self):
         try:
@@ -186,14 +244,23 @@ class ClientApp:
             messagebox.showerror("Bağlantı Hatası", 
                                  "Sunucuya bağlanılamadı!\n\nLütfen önce server.py'yi çalıştırın.")
     
-    def encrypt(self):
-        msg = self.msg_text.get("1.0", tk.END).strip()
+    def encrypt(self, msg=None):
+        # Metin kutusu ve dosya içeriğini kontrol et
+        text_input = self.msg_text.get("1.0", tk.END).strip()
+        file_input = self.file_content
+
+        if text_input and file_input:
+            messagebox.showerror("Hata", "Hem metin girdiniz hem de dosya seçtiniz!\nLütfen 'Girişleri Temizle' butonunu kullanıp sadece birini seçin.")
+            return
+        
+        if not text_input and not file_input:
+            messagebox.showerror("Hata", "Lütfen şifrelenecek bir metin girin veya dosya yükleyin!")
+            return
+
+        msg = text_input if text_input else file_input
+            
         key = self.key_entry.get().strip()
         cipher = self.cipher_var.get()
-        
-        if not msg:
-            messagebox.showerror("Hata", "Lütfen bir mesaj girin!")
-            return
         
         if ("Hash" not in cipher and "Polybius" not in cipher and "Pigpen" not in cipher) and not key:
             messagebox.showerror("Hata", "Lütfen bir anahtar girin!")
@@ -204,12 +271,12 @@ class ClientApp:
         
         try:
             if "DES (Manuel/Basit)" in cipher:
-                encrypted = self.des.encrypt_manual(msg, self.DES_KEY)
+                encrypted = self.des_man.encrypt(msg, self.DES_KEY)
             elif "AES (Manuel/Basit)" in cipher:
                 # Manuel AES, sadece key_bytes kullanır
-                encrypted = self.aes.encrypt_manual(msg, self.AES_KEY)
+                encrypted = self.aes_man.encrypt(msg, self.AES_KEY)
             elif "DES" in cipher:
-                encrypted = self.des.encrypt_lib(msg, self.DES_KEY, self.DES_IV)
+                encrypted = self.des_lib.encrypt(msg, self.DES_KEY, self.DES_IV)
             elif "AES-128 (RSA ile Güvenli)" in cipher:
                 # Key Server kontrolü: Sunucu kapalıysa şifreleme yapma (Güvenlik gereği)
                 try:
@@ -217,7 +284,7 @@ class ClientApp:
                 except Exception:
                     messagebox.showerror("Hata", "Key Server (Port 5556) Kapalı!\nBu yöntem için Key Server aktif olmalıdır.")
                     return
-                encrypted = self.aes.encrypt_lib(msg, self.AES_KEY, self.AES_IV)
+                encrypted = self.aes_lib.encrypt(msg, self.AES_KEY, self.AES_IV)
             elif "AES-128 (ECC ile Güvenli)" in cipher:
                 # Key Server kontrolü
                 try:
@@ -225,33 +292,31 @@ class ClientApp:
                 except Exception:
                     messagebox.showerror("Hata", "Key Server (Port 5556) Kapalı!\nBu yöntem için Key Server aktif olmalıdır.")
                     return
-                encrypted = self.aes.encrypt_lib(msg, self.AES_KEY, self.AES_IV)
+                encrypted = self.aes_lib.encrypt(msg, self.AES_KEY, self.AES_IV)
             elif "AES-128" in cipher:
-                encrypted = self.aes.encrypt_lib(msg, self.AES_KEY, self.AES_IV)
+                encrypted = self.aes_lib.encrypt(msg, self.AES_KEY, self.AES_IV)
             elif "Hill Cipher" in cipher:
-                encrypted = self.crypto.hill_encrypt(msg, key)
+                encrypted = self.hill.encrypt(msg, key)
             elif "Pigpen" in cipher:
-                encrypted = self.crypto.pigpen_encrypt(msg)
-            elif "Hill Cipher" in cipher:
-                encrypted = self.crypto.hill_encrypt(msg, key)
+                encrypted = self.pigpen.encrypt(msg)
             elif "Polybius" in cipher:
-                encrypted = self.crypto.polybius_encrypt(msg)
+                encrypted = self.polybius.encrypt(msg)
             elif "Route Cipher" in cipher:
-                encrypted = self.crypto.route_encrypt(msg, key)
+                encrypted = self.route.encrypt(msg, key)
             elif "Columnar" in cipher:
-                encrypted = self.crypto.columnar_encrypt(msg, key)
+                encrypted = self.columnar.encrypt(msg, key)
             elif "Caesar" in cipher:
-                encrypted = self.crypto.caesar_encrypt(msg, int(key))
+                encrypted = self.caesar.encrypt(msg, int(key))
             elif "Substitution" in cipher:
-                encrypted = self.crypto.substitution_encrypt(msg, key)
+                encrypted = self.substitution.encrypt(msg, key)
             elif "Vigenere" in cipher:
-                encrypted = self.crypto.vigenere_encrypt(msg, key)
+                encrypted = self.vigenere.encrypt(msg, key)
             elif "Playfair" in cipher:
-                encrypted = self.crypto.playfair_encrypt(msg, key)
+                encrypted = self.playfair.encrypt(msg, key)
             elif "Rail Fence" in cipher:
-                encrypted = self.crypto.rail_fence_encrypt(msg, key)
+                encrypted = self.rail_fence.encrypt(msg, key)
             elif "Hash" in cipher:
-                encrypted = self.crypto.md5_hash(msg)
+                encrypted = self.hash.md5_hash(msg)
             else:
                 messagebox.showerror("Hata", "Lütfen bir şifreleme yöntemi seçin!")
                 return

@@ -260,26 +260,8 @@ class ClientApp:
             self.client_socket.connect(('localhost', 5555))
             self.is_connected = True
             
-            # --- GÜVENLİ TÜNEL EL SIKIŞMASI (ECDH Handshake) ---
-            self.log("🛡️ Güvenli tünel kuruluyor (ECDH)...")
-            
-            # 1. Geçici ECC anahtarlarımızı üretelim
-            my_priv, my_pub = self.ecc.generate_keys()
-            my_pub_bytes = my_pub.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            )
-            
-            # 2. Public Key'imizi sunucuya gönderelim
-            self.client_socket.send(my_pub_bytes)
-            
-            # 3. Sunucunun Public Key'ini alalım
-            server_pub_bytes = self.client_socket.recv(4096)
-            server_pub = self.ecc.load_public_key_from_bytes(server_pub_bytes)
-            
-            # 4. Ortak Taşıma Anahtarını (Transport Key) türetelim
-            self.transport_key = self.ecc.derive_transport_key(my_priv, server_pub)
-            self.log("✅ Güvenli tünel kuruldu. Tüm trafik şifrelenecek.")
+            # --- GÜVENLİ TÜNEL İPTAL (Sadece Binary Paketleme Testi) ---
+            self.transport_key = None
             
             self.log("✅ Sunucuya bağlanıldı: localhost:5555")
             self.status_label.config(text="✅ Sunucuya bağlı", fg="green")
@@ -425,13 +407,12 @@ class ClientApp:
 
             if "DES (Manuel/Basit)" in cipher:
                 # Anahtarı mesajın içine gömüyoruz (Şifresiz/Plaintext olarak)
-                encrypted_msg = f"{self.DES_KEY.hex()}||||{encrypted_msg}"
-                effective_key = ""
+                # Anahtarı Transport Key ile şifreleyerek gömüyoruz
+                effective_key = self._encrypt_transport(self.DES_KEY)
                 effective_iv = ""
 
             elif "AES (Manuel/Basit)" in cipher:
-                encrypted_msg = f"{self.AES_KEY.hex()}||||{encrypted_msg}"
-                effective_key = ""
+                effective_key = self._encrypt_transport(self.AES_KEY)
                 effective_iv = ""
             elif "AES-128 (RSA ile Güvenli)" in cipher:
                 # 1. Key Server'dan Public Key al
@@ -454,10 +435,8 @@ class ClientApp:
                 pub_key = self.rsa.load_public_key_from_bytes(pub_key_pem)
                 encrypted_aes_key = self.rsa.encrypt_key(self.AES_KEY, pub_key)
                 
-                # Anahtarı ve IV'yi mesajın içine paketle (JSON'da key gözükmemesi için)
-                encrypted_msg = f"{encrypted_aes_key.hex()}||{self.AES_IV.hex()}||{encrypted_msg}"
-                effective_key = "" 
-                effective_iv = ""
+                effective_key = encrypted_aes_key.hex()
+                effective_iv = self._encrypt_transport(self.AES_IV)
             elif "AES-128 (ECC ile Güvenli)" in cipher:
                 # 1. Key Server'dan ECC Public Key al
                 pub_key_pem = self.get_public_key_from_server("ECC")
@@ -471,10 +450,8 @@ class ClientApp:
                 pub_key = self.ecc.load_public_key_from_bytes(pub_key_pem)
                 encrypted_aes_key = self.ecc.encrypt_key(self.AES_KEY, pub_key)
                 
-                # Anahtarı ve IV'yi mesajın içine paketle
-                encrypted_msg = f"{encrypted_aes_key.hex()}||{self.AES_IV.hex()}||{encrypted_msg}"
-                effective_key = ""
-                effective_iv = ""
+                effective_key = encrypted_aes_key.hex()
+                effective_iv = self._encrypt_transport(self.AES_IV)
             elif "DES (RSA ile Güvenli)" in cipher:
                 pub_key_pem = self.get_public_key_from_server()
                 if not pub_key_pem.startswith(b'-----BEGIN PUBLIC KEY'):
@@ -487,9 +464,8 @@ class ClientApp:
                 pub_key = self.rsa.load_public_key_from_bytes(pub_key_pem)
                 encrypted_des_key = self.rsa.encrypt_key(self.DES_KEY, pub_key)
                 
-                encrypted_msg = f"{encrypted_des_key.hex()}||{self.DES_IV.hex()}||{encrypted_msg}"
-                effective_key = ""
-                effective_iv = ""
+                effective_key = encrypted_des_key.hex()
+                effective_iv = self._encrypt_transport(self.DES_IV)
             elif "DES (ECC ile Güvenli)" in cipher:
                 pub_key_pem = self.get_public_key_from_server("ECC")
                 if not pub_key_pem.startswith(b'-----BEGIN PUBLIC KEY'):
@@ -500,45 +476,36 @@ class ClientApp:
                 pub_key = self.ecc.load_public_key_from_bytes(pub_key_pem)
                 encrypted_des_key = self.ecc.encrypt_key(self.DES_KEY, pub_key)
                 
-                encrypted_msg = f"{encrypted_des_key.hex()}||{self.DES_IV.hex()}||{encrypted_msg}"
-                effective_key = ""
-                effective_iv = ""
+                effective_key = encrypted_des_key.hex()
+                effective_iv = self._encrypt_transport(self.DES_IV)
             elif "DES" in cipher:
-                encrypted_msg = f"{self.DES_KEY.hex()}||{self.DES_IV.hex()}||{encrypted_msg}"
-                effective_key = ""
-                effective_iv = ""
+                effective_key = self._encrypt_transport(self.DES_KEY)
+                effective_iv = self._encrypt_transport(self.DES_IV)
             elif "AES-128" in cipher:
-                # Anahtarı mesajın içine gömüyoruz (Şifresiz/Plaintext olarak)
-                encrypted_msg = f"{self.AES_KEY.hex()}||{self.AES_IV.hex()}||{encrypted_msg}"
-                effective_key = ""
-                effective_iv = ""
+                effective_key = self._encrypt_transport(self.AES_KEY)
+                effective_iv = self._encrypt_transport(self.AES_IV)
             elif "Hash" not in cipher and "Polybius" not in cipher and "Pigpen" not in cipher:
-                effective_key = key
+                # Klasik şifreler (Hill, Vigenere vb.) için anahtarı şifrele
+                effective_key = self._encrypt_transport(key.encode())
 
             request = json.dumps({
                 'cipher': cipher,
-                'key': effective_key, 
-                'iv': effective_iv,
                 'message': encrypted_msg
             })
             
-            # --- TÜNEL ŞİFRELEME (AES-GCM) ---
-            # JSON verisini Transport Key ile şifrele
-            aesgcm = AESGCM(self.transport_key)
-            nonce = os.urandom(12)
-            transport_ciphertext = aesgcm.encrypt(nonce, request.encode('utf-8'), None)
+            # --- BINARY HEADER PROTOKOLÜ ---
+            # Key ve IV'yi JSON'dan çıkarıp paketin başına binary olarak ekliyoruz
+            key_bytes = bytes.fromhex(effective_key) if effective_key else b''
+            iv_bytes = bytes.fromhex(effective_iv) if effective_iv else b''
             
-            # Paketi gönder: Nonce + Ciphertext
-            self.client_socket.send(nonce + transport_ciphertext)
+            # Header: [Key Len (2)][Key Bytes][IV Len (2)][IV Bytes]
+            header = len(key_bytes).to_bytes(2, 'big') + key_bytes + len(iv_bytes).to_bytes(2, 'big') + iv_bytes
+            
+            self.client_socket.send(header + request.encode('utf-8'))
             self.log(f"📤 Şifreli mesaj sunucuya gönderildi")
             
-            # Sunucudan gelen şifreli yanıtı al ve çöz
-            response_encrypted = self.client_socket.recv(4096)
-            resp_nonce = response_encrypted[:12]
-            resp_ciphertext = response_encrypted[12:]
-            response_plaintext = aesgcm.decrypt(resp_nonce, resp_ciphertext, None)
-            
-            data = json.loads(response_plaintext.decode('utf-8'))
+            response = self.client_socket.recv(4096).decode('utf-8')
+            data = json.loads(response)
             
             if data.get('status') == 'success':
                 self.response_text.delete("1.0", tk.END)
@@ -566,6 +533,14 @@ class ClientApp:
         if self.client_socket:
             self.client_socket.close()
         self.window.destroy()
+
+    def _encrypt_transport(self, data_bytes):
+        """Veriyi Transport Key ile şifreler (Hex döner)"""
+        if not self.transport_key: return data_bytes.hex()
+        aesgcm = AESGCM(self.transport_key)
+        nonce = os.urandom(12)
+        ciphertext = aesgcm.encrypt(nonce, data_bytes, None)
+        return (nonce + ciphertext).hex()
 
 if __name__ == "__main__":
     ClientApp().run()

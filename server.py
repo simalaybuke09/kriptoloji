@@ -162,60 +162,55 @@ class ServerApp:
                     self.log(f"❌ Bağlantı hatası: {e}")
 
     def handle_client_handshake(self):
-        # --- GÜVENLİ TÜNEL EL SIKIŞMASI (ECDH Handshake) ---
-        try:
-            # 1. İstemcinin Public Key'ini al
-            client_pub_bytes = self.client_socket.recv(4096)
-            client_pub = self.ecc.load_public_key_from_bytes(client_pub_bytes)
-            
-            # 2. Kendi geçici anahtarlarımızı üret
-            my_priv, my_pub = self.ecc.generate_keys()
-            
-            # 3. Ortak Taşıma Anahtarını türet
-            self.transport_key = self.ecc.derive_transport_key(my_priv, client_pub)
-            
-            # 4. Kendi Public Key'imizi gönder
-            my_pub_bytes = my_pub.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            )
-            self.client_socket.send(my_pub_bytes)
-            self.log("✅ Güvenli tünel kuruldu (ECDH).")
-            
-            # Handshake başarılı, mesajları dinlemeye başla
-            self.receive_messages()
-            
-        except Exception as e:
-            self.log(f"❌ Handshake hatası: {e}")
-            if self.client_socket:
-                try: self.client_socket.close()
-                except: pass
+        # --- GÜVENLİ TÜNEL İPTAL ---
+        self.transport_key = None
+        self.receive_messages()
     
     def receive_messages(self):
         while self.is_running and self.client_socket:
             try:
-                # Şifreli tünel verisini al
+                # JSON verisini al (Artık açık metin, ama içindeki key şifreli)
                 data = self.client_socket.recv(4096)
                 if not data:
                     break
 
-                # --- TÜNEL DEŞİFRELEME (AES-GCM) ---
-                aesgcm = AESGCM(self.transport_key)
-                nonce = data[:12]
-                ciphertext = data[12:]
+                # --- BINARY HEADER AYRIŞTIRMA ---
+                # [Key Len (2)][Key Bytes][IV Len (2)][IV Bytes][JSON Body]
+                ptr = 0
                 
-                plaintext = aesgcm.decrypt(nonce, ciphertext, None)
-                json_str = plaintext.decode('utf-8')
+                key_len = int.from_bytes(data[ptr:ptr+2], 'big')
+                ptr += 2
+                key_bytes = data[ptr:ptr+key_len]
+                ptr += key_len
                 
-                request = json.loads(json_str)
+                iv_len = int.from_bytes(data[ptr:ptr+2], 'big')
+                ptr += 2
+                iv_bytes = data[ptr:ptr+iv_len]
+                ptr += iv_len
+                
+                json_body = data[ptr:].decode('utf-8')
+                request = json.loads(json_body)
+                
+                # Hex string formatına geri dön (Mevcut fonksiyonlarla uyum için)
+                key = key_bytes.hex()
+                iv = iv_bytes.hex()
+                
                 cipher = request.get('cipher')
-                key = request.get('key')
                 message = request.get('message')
-                iv = request.get('iv', '')
 
                 self.log(f"📨 Mesaj alındı - Yöntem: {cipher}, Anahtar: {key}, IV: {iv[:8]}...")
                 self.received_text.insert(tk.END, f"{message}\n")
                 self.received_text.see(tk.END)
+                
+                # Klasik şifreler için anahtar 'key' alanında ve şifreli gelir, çöz:
+                # Binary anahtar kullanan yöntemleri hariç tut (onlar decrypt_message içinde çözülecek)
+                binary_key_ciphers = ["AES-128", "DES", "AES (Manuel/Basit)", "DES (Manuel/Basit)", 
+                                      "AES-128 (RSA ile Güvenli)", "AES-128 (ECC ile Güvenli)", "DES (RSA ile Güvenli)", "DES (ECC ile Güvenli)"]
+                if key and cipher not in binary_key_ciphers:
+                    decrypted_key_bytes = self._decrypt_transport(key)
+                    if decrypted_key_bytes:
+                        key = decrypted_key_bytes.decode('utf-8')
+                        self.log(f"🔓 Transport Key ile anahtar çözüldü: {key}")
                 
                 decrypted = self.decrypt_message(message, cipher, key, iv)
                 
@@ -229,10 +224,7 @@ class ServerApp:
                     'status': 'success',
                 })
                 
-                # Yanıtı da şifreleyerek gönder
-                resp_nonce = os.urandom(12)
-                resp_ciphertext = aesgcm.encrypt(resp_nonce, response.encode('utf-8'), None)
-                self.client_socket.send(resp_nonce + resp_ciphertext)
+                self.client_socket.send(response.encode('utf-8'))
                 
             except Exception as e:
                 self.log(f"❌ Mesaj işleme hatası: {e}")
@@ -245,74 +237,42 @@ class ServerApp:
     def decrypt_message(self, message, cipher, key, iv=""):
         try:
             if "DES (Manuel/Basit)" in cipher:
-                try: key_hex, _, ciphertext = message.split("||", 2)
-                except ValueError: return "❌ Hata: Mesaj formatı geçersiz."
-                key_bytes = bytes.fromhex(key_hex)
-                return self.des_man.decrypt(ciphertext, key_bytes)
+                key_bytes = self._decrypt_transport(key)
+                return self.des_man.decrypt(message, key_bytes)
 
             if "AES (Manuel/Basit)" in cipher:
-                try: key_hex, _, ciphertext = message.split("||", 2)
-                except ValueError: return "❌ Hata: Mesaj formatı geçersiz."
-                key_bytes = bytes.fromhex(key_hex)
-                return self.aes_man.decrypt(ciphertext, key_bytes)
+                key_bytes = self._decrypt_transport(key)
+                return self.aes_man.decrypt(message, key_bytes)
             if "AES-128 (RSA ile Güvenli)" in cipher:
-                # Mesaj formatı: EncryptedKey||IV||Ciphertext
-                # AÇIKLAMA: İstemci, mesajı şifrelediği AES anahtarını (Session Key) 
-                # bizim Public Key'imizle şifreleyip paketin başına ekledi.
-                # Önce bu şifreli anahtarı çözüp, asıl mesajı açacak anahtarı elde ediyoruz.
-                try:
-                    enc_key_hex, iv_hex, ciphertext = message.split("||", 2)
-                except ValueError:
-                    return "❌ Hata: Mesaj formatı geçersiz (Key paketlenmemiş)."
-                
                 # 1. RSA ile şifrelenmiş AES anahtarını çöz (Paketten al)
-                encrypted_aes_key = bytes.fromhex(enc_key_hex)
+                encrypted_aes_key = bytes.fromhex(key)
                 aes_key = self.rsa.decrypt_key(encrypted_aes_key, self.private_key)
                 # 2. Çözülen AES anahtarı ile mesajı deşifre et (Paketten IV ve Mesajı al)
-                iv_bytes = bytes.fromhex(iv_hex)
-                return self.aes_lib.decrypt(ciphertext, aes_key, iv_bytes)
+                iv_bytes = self._decrypt_transport(iv)
+                return self.aes_lib.decrypt(message, aes_key, iv_bytes)
             if "AES-128 (ECC ile Güvenli)" in cipher:
-                try:
-                    enc_key_hex, iv_hex, ciphertext = message.split("||", 2)
-                except ValueError:
-                    return "❌ Hata: Mesaj formatı geçersiz."
-                
-                encrypted_aes_key = bytes.fromhex(enc_key_hex)
+                encrypted_aes_key = bytes.fromhex(key)
                 aes_key = self.ecc.decrypt_key(encrypted_aes_key, self.ecc_private_key)
-                iv_bytes = bytes.fromhex(iv_hex)
-                return self.aes_lib.decrypt(ciphertext, aes_key, iv_bytes)
+                iv_bytes = self._decrypt_transport(iv)
+                return self.aes_lib.decrypt(message, aes_key, iv_bytes)
             if "DES (RSA ile Güvenli)" in cipher:
-                try:
-                    enc_key_hex, iv_hex, ciphertext = message.split("||", 2)
-                except ValueError:
-                    return "❌ Hata: Mesaj formatı geçersiz (Key paketlenmemiş)."
-                
-                encrypted_des_key = bytes.fromhex(enc_key_hex)
+                encrypted_des_key = bytes.fromhex(key)
                 des_key = self.rsa.decrypt_key(encrypted_des_key, self.private_key)
-                iv_bytes = bytes.fromhex(iv_hex)
-                return self.des_lib.decrypt(ciphertext, des_key, iv_bytes)
+                iv_bytes = self._decrypt_transport(iv)
+                return self.des_lib.decrypt(message, des_key, iv_bytes)
             if "DES (ECC ile Güvenli)" in cipher:
-                try:
-                    enc_key_hex, iv_hex, ciphertext = message.split("||", 2)
-                except ValueError:
-                    return "❌ Hata: Mesaj formatı geçersiz."
-                
-                encrypted_des_key = bytes.fromhex(enc_key_hex)
+                encrypted_des_key = bytes.fromhex(key)
                 des_key = self.ecc.decrypt_key(encrypted_des_key, self.ecc_private_key)
-                iv_bytes = bytes.fromhex(iv_hex)
-                return self.des_lib.decrypt(ciphertext, des_key, iv_bytes)
+                iv_bytes = self._decrypt_transport(iv)
+                return self.des_lib.decrypt(message, des_key, iv_bytes)
             if "DES" in cipher:
-                try: key_hex, iv_hex, ciphertext = message.split("||", 2)
-                except ValueError: return "❌ Hata: Mesaj formatı geçersiz."
-                key_bytes = bytes.fromhex(key_hex)
-                iv_bytes = bytes.fromhex(iv_hex)
-                return self.des_lib.decrypt(ciphertext, key_bytes, iv_bytes)
+                key_bytes = self._decrypt_transport(key)
+                iv_bytes = self._decrypt_transport(iv)
+                return self.des_lib.decrypt(message, key_bytes, iv_bytes)
             if "AES-128" in cipher:
-                try: key_hex, iv_hex, ciphertext = message.split("||", 2)
-                except ValueError: return "❌ Hata: Mesaj formatı geçersiz."
-                key_bytes = bytes.fromhex(key_hex)
-                iv_bytes = bytes.fromhex(iv_hex)
-                return self.aes_lib.decrypt(ciphertext, key_bytes, iv_bytes)
+                key_bytes = self._decrypt_transport(key)
+                iv_bytes = self._decrypt_transport(iv)
+                return self.aes_lib.decrypt(message, key_bytes, iv_bytes)
             elif "Hill Cipher" in cipher:
                 return self.hill.decrypt(message, key)
             if "Pigpen" in cipher:
@@ -374,6 +334,19 @@ class ServerApp:
         if os.path.exists("public_key_ecc.pem"):
             os.remove("public_key_ecc.pem")
         self.window.destroy()
+
+    def _decrypt_transport(self, hex_data):
+        """Transport Key ile şifrelenmiş hex veriyi çözer"""
+        if not self.transport_key: return bytes.fromhex(hex_data)
+        try:
+            data = bytes.fromhex(hex_data)
+            nonce = data[:12]
+            ciphertext = data[12:]
+            aesgcm = AESGCM(self.transport_key)
+            return aesgcm.decrypt(nonce, ciphertext, None)
+        except Exception as e:
+            self.log(f"❌ Transport Deşifreleme Hatası: {e}")
+            return None
 
 if __name__ == "__main__":
     ServerApp().run()

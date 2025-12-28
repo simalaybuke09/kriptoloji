@@ -20,6 +20,9 @@ from methods.vigenere_cipher import VigenereCipher
 from methods.playfair_cipher import PlayfairCipher
 from methods.rail_fence_cipher import RailFenceCipher
 from methods.hash_cipher import HashCipher
+from methods.affine_cipher import AffineCipher
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives import serialization
 import os
 
 class ClientApp:
@@ -46,9 +49,11 @@ class ClientApp:
         self.playfair = PlayfairCipher()
         self.rail_fence = RailFenceCipher()
         self.hash = HashCipher()
+        self.affine = AffineCipher()
         
         self.client_socket = None
         self.is_connected = False
+        self.transport_key = None # Tünel şifreleme anahtarı
         self.file_content = None
         
         self.AES_KEY = os.urandom(16)
@@ -85,8 +90,8 @@ class ClientApp:
         cipher_combo = ttk.Combobox(content, textvariable=self.cipher_var,
                                        font=("Arial", 11), width=50, state="readonly")
         cipher_combo['values'] = ("Pigpen Cipher (Anahtarsız)", "Polybius Cipher (Anahtarsız)", "Route Cipher (Spiral-Saat Yönü)", "Columnar Transposition (Anahtar Kelime)", "Caesar Cipher (Kaydırma)", 
-                                     "Substitution Cipher", "Vigenere Cipher", "Playfair Cipher", 
-                                     "Rail Fence Cipher (Ray Sayısı)","Hill Cipher", "Hash (MD5)","AES-128 (Kütüphaneli)","AES-128 (RSA ile Güvenli)","AES-128 (ECC ile Güvenli)","DES (Kütüphaneli)","AES (Manuel/Basit)","DES (Manual/Basit)")
+                                     "Affine Cipher (Doğrusal - a,b)", "Substitution Cipher", "Vigenere Cipher", "Playfair Cipher", 
+                                     "Rail Fence Cipher (Ray Sayısı)","Hill Cipher", "Hash (MD5)","AES-128 (Kütüphaneli)","AES-128 (RSA ile Güvenli)","AES-128 (ECC ile Güvenli)","DES (Kütüphaneli)","DES (RSA ile Güvenli)","DES (ECC ile Güvenli)","AES (Manuel/Basit)","DES (Manual/Basit)")
         cipher_combo.current(0)
         cipher_combo.pack(pady=5)
         
@@ -173,6 +178,24 @@ class ClientApp:
             except Exception:
                 self.key_entry.insert(0, "HATA: Key Server (Port 5556) Kapalı!")
                 self.key_entry.config(state=tk.DISABLED, fg="red")
+        elif "DES (RSA ile Güvenli)" in selected_cipher:
+            try:
+                self.get_public_key_from_server()
+                des_key_hex = self.DES_KEY.hex()
+                self.key_entry.insert(0, f"DES Key (RSA ile şifrelenip yollanacak): {des_key_hex}")
+                self.key_entry.config(state=tk.DISABLED, fg="#9C27B0")
+            except Exception:
+                self.key_entry.insert(0, "HATA: Key Server (Port 5556) Kapalı!")
+                self.key_entry.config(state=tk.DISABLED, fg="red")
+        elif "DES (ECC ile Güvenli)" in selected_cipher:
+            try:
+                self.get_public_key_from_server("ECC")
+                des_key_hex = self.DES_KEY.hex()
+                self.key_entry.insert(0, f"DES Key (ECC ile şifrelenip yollanacak): {des_key_hex}")
+                self.key_entry.config(state=tk.DISABLED, fg="#9C27B0")
+            except Exception:
+                self.key_entry.insert(0, "HATA: Key Server (Port 5556) Kapalı!")
+                self.key_entry.config(state=tk.DISABLED, fg="red")
         elif "AES-128" in selected_cipher:
             aes_key_hex = self.AES_KEY.hex()
             self.key_entry.insert(0, f"AES Anahtarı (16B): {aes_key_hex}")
@@ -197,6 +220,8 @@ class ClientApp:
             self.key_entry.insert(0, "TRUVA (Anahtar Kelime)")
         elif "Caesar" in selected_cipher:
             self.key_entry.insert(0, "3 (Kaydırma Miktarı)")
+        elif "Affine" in selected_cipher:
+            self.key_entry.insert(0, "Örn: 5,8 (a,b)")
         elif "Substitution" in selected_cipher:
             self.key_entry.insert(0, "QWERTYUIOPASDFGHJKLZXCVBNM (26 benzersiz harf)")
         elif "Vigenere" in selected_cipher:
@@ -234,6 +259,27 @@ class ClientApp:
             self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.client_socket.connect(('localhost', 5555))
             self.is_connected = True
+            
+            # --- GÜVENLİ TÜNEL EL SIKIŞMASI (ECDH Handshake) ---
+            self.log("🛡️ Güvenli tünel kuruluyor (ECDH)...")
+            
+            # 1. Geçici ECC anahtarlarımızı üretelim
+            my_priv, my_pub = self.ecc.generate_keys()
+            my_pub_bytes = my_pub.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            
+            # 2. Public Key'imizi sunucuya gönderelim
+            self.client_socket.send(my_pub_bytes)
+            
+            # 3. Sunucunun Public Key'ini alalım
+            server_pub_bytes = self.client_socket.recv(4096)
+            server_pub = self.ecc.load_public_key_from_bytes(server_pub_bytes)
+            
+            # 4. Ortak Taşıma Anahtarını (Transport Key) türetelim
+            self.transport_key = self.ecc.derive_transport_key(my_priv, server_pub)
+            self.log("✅ Güvenli tünel kuruldu. Tüm trafik şifrelenecek.")
             
             self.log("✅ Sunucuya bağlanıldı: localhost:5555")
             self.status_label.config(text="✅ Sunucuya bağlı", fg="green")
@@ -275,8 +321,6 @@ class ClientApp:
             elif "AES (Manuel/Basit)" in cipher:
                 # Manuel AES, sadece key_bytes kullanır
                 encrypted = self.aes_man.encrypt(msg, self.AES_KEY)
-            elif "DES" in cipher:
-                encrypted = self.des_lib.encrypt(msg, self.DES_KEY, self.DES_IV)
             elif "AES-128 (RSA ile Güvenli)" in cipher:
                 # Key Server kontrolü: Sunucu kapalıysa şifreleme yapma (Güvenlik gereği)
                 try:
@@ -293,6 +337,22 @@ class ClientApp:
                     messagebox.showerror("Hata", "Key Server (Port 5556) Kapalı!\nBu yöntem için Key Server aktif olmalıdır.")
                     return
                 encrypted = self.aes_lib.encrypt(msg, self.AES_KEY, self.AES_IV)
+            elif "DES (RSA ile Güvenli)" in cipher:
+                try:
+                    self.get_public_key_from_server()
+                except Exception:
+                    messagebox.showerror("Hata", "Key Server (Port 5556) Kapalı!\nBu yöntem için Key Server aktif olmalıdır.")
+                    return
+                encrypted = self.des_lib.encrypt(msg, self.DES_KEY, self.DES_IV)
+            elif "DES (ECC ile Güvenli)" in cipher:
+                try:
+                    self.get_public_key_from_server("ECC")
+                except Exception:
+                    messagebox.showerror("Hata", "Key Server (Port 5556) Kapalı!\nBu yöntem için Key Server aktif olmalıdır.")
+                    return
+                encrypted = self.des_lib.encrypt(msg, self.DES_KEY, self.DES_IV)
+            elif "DES" in cipher:
+                encrypted = self.des_lib.encrypt(msg, self.DES_KEY, self.DES_IV)
             elif "AES-128" in cipher:
                 encrypted = self.aes_lib.encrypt(msg, self.AES_KEY, self.AES_IV)
             elif "Hill Cipher" in cipher:
@@ -307,6 +367,8 @@ class ClientApp:
                 encrypted = self.columnar.encrypt(msg, key)
             elif "Caesar" in cipher:
                 encrypted = self.caesar.encrypt(msg, int(key))
+            elif "Affine" in cipher:
+                encrypted = self.affine.encrypt(msg, key)
             elif "Substitution" in cipher:
                 encrypted = self.substitution.encrypt(msg, key)
             elif "Vigenere" in cipher:
@@ -362,16 +424,15 @@ class ClientApp:
             effective_iv = ""
 
             if "DES (Manuel/Basit)" in cipher:
-                effective_key = self.DES_KEY.hex()
+                # Anahtarı mesajın içine gömüyoruz (Şifresiz/Plaintext olarak)
+                encrypted_msg = f"{self.DES_KEY.hex()}||||{encrypted_msg}"
+                effective_key = ""
                 effective_iv = ""
 
             elif "AES (Manuel/Basit)" in cipher:
-                effective_key = self.AES_KEY.hex()
-                effective_iv = "" # Manuelde IV kullanmıyoruz (basitleştirilmiş versiyon)
-
-            elif "DES" in cipher:
-                effective_key = self.DES_KEY.hex()
-                effective_iv = self.DES_IV.hex()
+                encrypted_msg = f"{self.AES_KEY.hex()}||||{encrypted_msg}"
+                effective_key = ""
+                effective_iv = ""
             elif "AES-128 (RSA ile Güvenli)" in cipher:
                 # 1. Key Server'dan Public Key al
                 pub_key_pem = self.get_public_key_from_server()
@@ -385,11 +446,18 @@ class ClientApp:
 
                 self.log("✅ Public Key alındı.")
                 
+                # AÇIKLAMA: Key Server'dan alınan anahtar (Public Key), mesajı şifreleyen anahtar DEĞİLDİR.
+                # Mesajı şifreleyen AES anahtarı (Session Key) istemcide üretilir.
+                # Sunucunun mesajı açabilmesi için bu AES anahtarını ona güvenli bir şekilde (Public Key ile şifreleyerek) göndermemiz gerekir.
+                
                 # 2. AES Anahtarını RSA ile şifrele
                 pub_key = self.rsa.load_public_key_from_bytes(pub_key_pem)
                 encrypted_aes_key = self.rsa.encrypt_key(self.AES_KEY, pub_key)
-                effective_key = encrypted_aes_key.hex() # Şifreli anahtarı hex olarak gönder
-                effective_iv = self.AES_IV.hex()
+                
+                # Anahtarı ve IV'yi mesajın içine paketle (JSON'da key gözükmemesi için)
+                encrypted_msg = f"{encrypted_aes_key.hex()}||{self.AES_IV.hex()}||{encrypted_msg}"
+                effective_key = "" 
+                effective_iv = ""
             elif "AES-128 (ECC ile Güvenli)" in cipher:
                 # 1. Key Server'dan ECC Public Key al
                 pub_key_pem = self.get_public_key_from_server("ECC")
@@ -402,12 +470,48 @@ class ClientApp:
                 # 2. AES Anahtarını ECC ile şifrele
                 pub_key = self.ecc.load_public_key_from_bytes(pub_key_pem)
                 encrypted_aes_key = self.ecc.encrypt_key(self.AES_KEY, pub_key)
-                effective_key = encrypted_aes_key.hex()
-                effective_iv = self.AES_IV.hex()
+                
+                # Anahtarı ve IV'yi mesajın içine paketle
+                encrypted_msg = f"{encrypted_aes_key.hex()}||{self.AES_IV.hex()}||{encrypted_msg}"
+                effective_key = ""
+                effective_iv = ""
+            elif "DES (RSA ile Güvenli)" in cipher:
+                pub_key_pem = self.get_public_key_from_server()
+                if not pub_key_pem.startswith(b'-----BEGIN PUBLIC KEY'):
+                    error_msg = pub_key_pem.decode('utf-8', errors='ignore')
+                    self.log(f"❌ Key Server Hatası: {error_msg}")
+                    messagebox.showerror("Key Server Hatası", f"Anahtar alınamadı:\n{error_msg}")
+                    return
+                self.log("✅ Public Key alındı.")
+                
+                pub_key = self.rsa.load_public_key_from_bytes(pub_key_pem)
+                encrypted_des_key = self.rsa.encrypt_key(self.DES_KEY, pub_key)
+                
+                encrypted_msg = f"{encrypted_des_key.hex()}||{self.DES_IV.hex()}||{encrypted_msg}"
+                effective_key = ""
+                effective_iv = ""
+            elif "DES (ECC ile Güvenli)" in cipher:
+                pub_key_pem = self.get_public_key_from_server("ECC")
+                if not pub_key_pem.startswith(b'-----BEGIN PUBLIC KEY'):
+                    error_msg = pub_key_pem.decode('utf-8', errors='ignore')
+                    messagebox.showerror("Key Server Hatası", f"Anahtar alınamadı:\n{error_msg}")
+                    return
+
+                pub_key = self.ecc.load_public_key_from_bytes(pub_key_pem)
+                encrypted_des_key = self.ecc.encrypt_key(self.DES_KEY, pub_key)
+                
+                encrypted_msg = f"{encrypted_des_key.hex()}||{self.DES_IV.hex()}||{encrypted_msg}"
+                effective_key = ""
+                effective_iv = ""
+            elif "DES" in cipher:
+                encrypted_msg = f"{self.DES_KEY.hex()}||{self.DES_IV.hex()}||{encrypted_msg}"
+                effective_key = ""
+                effective_iv = ""
             elif "AES-128" in cipher:
-                # AES için anahtar ve IV'yi hex olarak gönder
-                effective_key = self.AES_KEY.hex()
-                effective_iv = self.AES_IV.hex()
+                # Anahtarı mesajın içine gömüyoruz (Şifresiz/Plaintext olarak)
+                encrypted_msg = f"{self.AES_KEY.hex()}||{self.AES_IV.hex()}||{encrypted_msg}"
+                effective_key = ""
+                effective_iv = ""
             elif "Hash" not in cipher and "Polybius" not in cipher and "Pigpen" not in cipher:
                 effective_key = key
 
@@ -418,11 +522,23 @@ class ClientApp:
                 'message': encrypted_msg
             })
             
-            self.client_socket.send(request.encode('utf-8'))
+            # --- TÜNEL ŞİFRELEME (AES-GCM) ---
+            # JSON verisini Transport Key ile şifrele
+            aesgcm = AESGCM(self.transport_key)
+            nonce = os.urandom(12)
+            transport_ciphertext = aesgcm.encrypt(nonce, request.encode('utf-8'), None)
+            
+            # Paketi gönder: Nonce + Ciphertext
+            self.client_socket.send(nonce + transport_ciphertext)
             self.log(f"📤 Şifreli mesaj sunucuya gönderildi")
             
-            response = self.client_socket.recv(4096).decode('utf-8')
-            data = json.loads(response)
+            # Sunucudan gelen şifreli yanıtı al ve çöz
+            response_encrypted = self.client_socket.recv(4096)
+            resp_nonce = response_encrypted[:12]
+            resp_ciphertext = response_encrypted[12:]
+            response_plaintext = aesgcm.decrypt(resp_nonce, resp_ciphertext, None)
+            
+            data = json.loads(response_plaintext.decode('utf-8'))
             
             if data.get('status') == 'success':
                 self.response_text.delete("1.0", tk.END)

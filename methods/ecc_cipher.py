@@ -99,3 +99,18 @@ class ECCCipher:
             return original_key
         except Exception as e:
             raise ValueError(f"ECC Deşifreleme Hatası: {e}")
+
+    def derive_transport_key(self, private_key, peer_public_key):
+        """Diffie-Hellman (ECDH) ile ortak taşıma anahtarı türetir"""
+        # ECDH ile ortak sırrı hesapla
+        shared_key = private_key.exchange(ec.ECDH(), peer_public_key)
+        
+        # Anahtar türetme (HKDF)
+        derived_key = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32, # AES-256 için 32 byte
+            salt=None,
+            info=b'transport_secure_tunnel',
+            backend=default_backend()
+        ).derive(shared_key)
+        return derived_key

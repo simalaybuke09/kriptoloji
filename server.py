@@ -153,18 +153,14 @@ class ServerApp:
                     except: pass
                 
                 self.client_socket = client_sock
+                self.transport_key = None # Yeni bağlantı için anahtarı sıfırla
 
-                # Handshake işlemini thread'e taşı (Ana döngüyü bloklamamak için)
-                threading.Thread(target=self.handle_client_handshake, daemon=True).start()
+                # Doğrudan mesaj dinlemeye başla (Handshake yok)
+                threading.Thread(target=self.receive_messages, daemon=True).start()
                 
             except Exception as e:
                 if self.is_running:
                     self.log(f"❌ Bağlantı hatası: {e}")
-
-    def handle_client_handshake(self):
-        # --- GÜVENLİ TÜNEL İPTAL ---
-        self.transport_key = None
-        self.receive_messages()
     
     def receive_messages(self):
         while self.is_running and self.client_socket:
@@ -211,7 +207,8 @@ class ServerApp:
                     decrypted_key_bytes = self._decrypt_transport(key)
                     if decrypted_key_bytes:
                         key = decrypted_key_bytes.decode('utf-8')
-                        self.log(f"🔓 Transport Key ile anahtar çözüldü: {key}")
+                        if self.transport_key:
+                            self.log(f"🔓 Transport Key ile anahtar çözüldü: {key}")
                 
                 decrypted = self.decrypt_message(message, cipher, key, iv)
                 

@@ -64,6 +64,7 @@ class ClientApp:
 
         self.create_ui()
         self.connect_to_server()
+        self.start_reconnect_loop() # Otomatik yeniden bağlanma döngüsünü başlat
         
     def create_ui(self):
         header = tk.Frame(self.window, bg="#2196F3", height=80)
@@ -254,7 +255,7 @@ class ClientApp:
         self.encrypted_text.delete("1.0", tk.END)
         self.log("🧹 Girişler temizlendi.")
         
-    def connect_to_server(self):
+    def connect_to_server(self, silent=False):
         try:
             self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.client_socket.connect(('localhost', 5555))
@@ -267,10 +268,26 @@ class ClientApp:
             self.status_label.config(text="✅ Sunucuya bağlı", fg="green")
             
         except Exception as e:
-            self.log(f"❌ Sunucuya bağlanılamadı: {e}")
+            self.is_connected = False
             self.status_label.config(text=f"❌ Bağlantı Hatası: {e}", fg="red")
-            messagebox.showerror("Bağlantı Hatası", 
-                                 "Sunucuya bağlanılamadı!\n\nLütfen önce server.py'yi çalıştırın.")
+            
+            if not silent:
+                self.log(f"❌ Sunucuya bağlanılamadı: {e}")
+                messagebox.showerror("Bağlantı Hatası", 
+                                     "Sunucuya bağlanılamadı!\n\nLütfen önce server.py'yi çalıştırın.")
+            else:
+                # Sessiz modda sadece loga yaz (Popup açma)
+                # self.log(f"⚠️ Yeniden bağlanma başarısız: {e}") 
+                pass
+
+    def start_reconnect_loop(self):
+        """Bağlantı koptuğunda periyodik olarak yeniden bağlanmayı dener"""
+        if not self.is_connected:
+            self.status_label.config(text="🔄 Sunucuya yeniden bağlanılıyor...", fg="orange")
+            self.connect_to_server(silent=True)
+        
+        # 3000 ms (3 saniye) sonra tekrar çalıştır
+        self.window.after(3000, self.start_reconnect_loop)
     
     def encrypt(self, msg=None):
         # Metin kutusu ve dosya içeriğini kontrol et

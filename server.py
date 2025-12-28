@@ -204,9 +204,10 @@ class ServerApp:
                 
                 # Klasik şifreler için anahtar 'key' alanında ve şifreli gelir, çöz:
                 # Binary anahtar kullanan yöntemleri hariç tut (onlar decrypt_message içinde çözülecek)
-                binary_key_ciphers = ["AES-128", "DES", "AES (Manuel/Basit)", "DES (Manuel/Basit)", 
-                                      "AES-128 (RSA ile Güvenli)", "AES-128 (ECC ile Güvenli)", "DES (RSA ile Güvenli)", "DES (ECC ile Güvenli)"]
-                if key and cipher not in binary_key_ciphers:
+                # "AES" veya "DES" içeren tüm yöntemleri binary olarak kabul et
+                is_binary_key = any(x in cipher for x in ["AES", "DES"])
+                
+                if key and not is_binary_key:
                     decrypted_key_bytes = self._decrypt_transport(key)
                     if decrypted_key_bytes:
                         key = decrypted_key_bytes.decode('utf-8')
